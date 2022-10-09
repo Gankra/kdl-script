@@ -3,7 +3,8 @@ use std::{collections::HashMap, sync::Arc};
 use miette::NamedSource;
 
 use crate::{
-    parse::{Expr, FuncDecl, KdlScriptProgram, Literal, Spanned, Stmt},
+    parse::{Expr, FuncDecl, Literal, ParsedProgram, Stmt},
+    spanned::Spanned,
     Result,
 };
 
@@ -15,7 +16,7 @@ enum Val {
     Bool(bool),
 }
 
-pub fn eval_kdl_script(_src: &Arc<NamedSource>, program: KdlScriptProgram) -> Result<i64> {
+pub fn eval_kdl_script(_src: &Arc<NamedSource>, program: &ParsedProgram) -> Result<i64> {
     let main = lookup_func(&program, "main");
 
     let val = eval_call(&program, main, HashMap::default());
@@ -30,7 +31,7 @@ pub fn eval_kdl_script(_src: &Arc<NamedSource>, program: KdlScriptProgram) -> Re
     }
 }
 
-fn eval_call(program: &KdlScriptProgram, func: &FuncDecl, mut vars: HashMap<String, Val>) -> Val {
+fn eval_call(program: &ParsedProgram, func: &FuncDecl, mut vars: HashMap<String, Val>) -> Val {
     for stmt in &func.body {
         match stmt {
             Stmt::Let(stmt) => {
@@ -52,7 +53,7 @@ fn eval_call(program: &KdlScriptProgram, func: &FuncDecl, mut vars: HashMap<Stri
     unreachable!("function didn't return!");
 }
 
-fn eval_expr(program: &KdlScriptProgram, expr: &Spanned<Expr>, vars: &HashMap<String, Val>) -> Val {
+fn eval_expr(program: &ParsedProgram, expr: &Spanned<Expr>, vars: &HashMap<String, Val>) -> Val {
     match &**expr {
         Expr::Call(expr) => {
             let func = lookup_func(program, &expr.func);
@@ -141,10 +142,13 @@ fn eval_add(input: HashMap<String, Val>) -> Val {
     }
 }
 
-fn lookup_func<'a>(program: &'a KdlScriptProgram, func_name: &str) -> &'a FuncDecl {
-    let func = program.funcs.iter().find(|f| &*f.name == func_name);
+fn lookup_func<'a>(program: &'a ParsedProgram, func_name: &str) -> &'a FuncDecl {
+    let func = program
+        .funcs
+        .iter()
+        .find(|(name, _f)| &***name == func_name);
     if func.is_none() {
         panic!("couldn't find {func_name} function");
     }
-    func.unwrap()
+    func.unwrap().1
 }

@@ -5,7 +5,7 @@ struct "Point" {
 }
 
 fn "main" {
-    outputs { _ "f64"; }
+    outputs { a "f64"; }
 
     let "pt1" "Point" {
         x 1.0
@@ -24,7 +24,7 @@ fn "main" {
 
 fn "add" {
     inputs { a "Point"; b "Point"; }
-    outputs { _ "Point"; }
+    outputs { a "Point"; }
 
     return "Point" {
         x "+:" "a.x" "b.x"
