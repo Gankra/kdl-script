@@ -15,10 +15,3 @@ fn "test_pun" {
     inputs { a "MetersU32"; }
     outputs { a "MetersU32"; }
 }
-
-fn "main" {
-    inputs { }
-    outputs { out "i64"; }
-
-    return 0
-}

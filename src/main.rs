@@ -16,6 +16,8 @@ use types::TypedProgram;
 mod eval;
 mod parse;
 mod spanned;
+#[cfg(test)]
+mod tests;
 mod types;
 
 #[derive(Parser, Debug)]
@@ -62,7 +64,7 @@ pub struct Compiler {
 pub type Result<T> = std::result::Result<T, KdlScriptError>;
 
 impl Compiler {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             error_handler: ErrorHandler {
                 error_mode: ErrorMode::Scream,
@@ -74,14 +76,24 @@ impl Compiler {
         }
     }
 
-    fn compile(
+    pub fn compile_path(
         &mut self,
-        src_path: &Path,
+        src_path: impl AsRef<Path>,
     ) -> std::result::Result<Arc<TypedProgram>, KdlScriptError> {
+        let src_path = src_path.as_ref();
         let input_name = src_path.display().to_string();
         let mut input_file = File::open(src_path)?;
         let mut input_string = String::new();
         input_file.read_to_string(&mut input_string)?;
+
+        self.compile_string(&input_name, input_string)
+    }
+
+    pub fn compile_string(
+        &mut self,
+        input_name: &str,
+        input_string: String,
+    ) -> std::result::Result<Arc<TypedProgram>, KdlScriptError> {
         let input_string = Arc::new(input_string);
 
         let src = Arc::new(miette::NamedSource::new(input_name, input_string.clone()));
@@ -124,7 +136,7 @@ fn real_main() -> Result<()> {
         .init();
 
     let mut compiler = Compiler::new();
-    let typed = compiler.compile(&cli.src)?;
+    let typed = compiler.compile_path(&cli.src)?;
     println!("{:?}", typed);
 
     if let (Some(src), Some(parsed)) = (&compiler.source, &compiler.parsed) {

@@ -2,6 +2,14 @@ use std::sync::Arc;
 
 use kdl::{KdlDocument, KdlEntry, KdlNode};
 use miette::{Diagnostic, NamedSource, SourceSpan};
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::character::complete::{alpha1, alphanumeric1};
+use nom::combinator::{all_consuming, cut, opt, recognize};
+use nom::error::{context, convert_error, VerboseError};
+use nom::multi::{many0, many0_count, separated_list1};
+use nom::sequence::{delimited, pair, preceded, separated_pair};
+use nom::{Finish, IResult};
 use thiserror::Error;
 use tracing::trace;
 
@@ -264,6 +272,7 @@ impl Parser<'_> {
     fn struct_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<StructDecl> {
         trace!("struct decl");
         let name = self.one_string(node, "type name")?;
+        let name = self.ident(name)?;
         let fields = self.typed_var_children(node)?;
 
         Ok(StructDecl {
@@ -276,6 +285,7 @@ impl Parser<'_> {
     fn union_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<UnionDecl> {
         trace!("union decl");
         let name = self.one_string(node, "type name")?;
+        let name = self.ident(name)?;
         let fields = self.typed_var_children(node)?;
 
         Ok(UnionDecl {
@@ -288,6 +298,7 @@ impl Parser<'_> {
     fn enum_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<EnumDecl> {
         trace!("enum decl");
         let name = self.one_string(node, "type name")?;
+        let name = self.ident(name)?;
         let variants = self.enum_variant_children(node)?;
 
         Ok(EnumDecl {
@@ -300,6 +311,7 @@ impl Parser<'_> {
     fn tagged_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<TaggedDecl> {
         trace!("enum decl");
         let name = self.one_string(node, "type name")?;
+        let name = self.ident(name)?;
         let variants = self.tagged_variant_children(node)?;
 
         Ok(TaggedDecl {
@@ -311,6 +323,7 @@ impl Parser<'_> {
 
     fn pun_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<PunDecl> {
         let name = self.one_string(node, "type name")?;
+        let name = self.ident(name)?;
 
         let mut blocks = vec![];
         for item in node.children().into_iter().flat_map(|d| d.nodes()) {
@@ -318,6 +331,16 @@ impl Parser<'_> {
             match item_name {
                 "lang" => {
                     let langs = self.string_list(item.entries())?;
+                    if langs.is_empty() {
+                        let node_ident = item.name().span();
+                        let after_ident = node_ident.offset() + node_ident.len();
+                        return Err(KdlScriptParseError {
+                            message: format!("Hey I need a lang name (string) here!"),
+                            src: self.src.clone(),
+                            span: (after_ident..after_ident).into(),
+                            help: None,
+                        })?;
+                    }
                     let final_ty = self.pun_block(item, &name)?;
                     blocks.push(PunBlock {
                         selector: PunSelector::Any(
@@ -336,7 +359,7 @@ impl Parser<'_> {
                 }
                 x => {
                     return Err(KdlScriptParseError {
-                        message: format!("I don't know what a '{x}' is"),
+                        message: format!("I don't know what a '{x}' is here"),
                         src: self.src.clone(),
                         span: *item.name().span(),
                         help: None,
@@ -397,7 +420,7 @@ impl Parser<'_> {
             }
         } else {
             return Err(KdlScriptParseError {
-                message: format!("lang blocks need bodys"),
+                message: format!("pun blocks need bodies"),
                 src: self.src.clone(),
                 span: *block.span(),
                 help: None,
@@ -407,6 +430,7 @@ impl Parser<'_> {
 
     fn alias_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<AliasDecl> {
         let name = self.string_at(node, "type name", 0)?;
+        let name = self.ident(name)?;
         let alias_str = self.string_at(node, "type name", 1)?;
         let alias = self.ty_ref(&alias_str)?;
 
@@ -416,6 +440,7 @@ impl Parser<'_> {
     fn func_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<FuncDecl> {
         trace!("fn");
         let name = self.one_string(node, "function name")?;
+        let name = self.ident(name)?;
         let mut inputs = vec![];
         let mut outputs = vec![];
         let mut body = vec![];
@@ -482,6 +507,7 @@ impl Parser<'_> {
                 "let" => {
                     trace!("let stmt");
                     let name = self.string_at(stmt, "variable name", 0)?;
+                    let name = self.ident(name)?;
                     let name = if &*name == "_" { None } else { Some(name) };
                     let expr = self.expr_rhs(stmt, 1)?;
                     body.push(Stmt::Let(LetStmt { var: name, expr }));
@@ -673,12 +699,21 @@ impl Parser<'_> {
             .map(|var| {
                 let name = var.name();
                 let name = Spanned::new(name.value().to_owned(), *name.span());
+                let name = self.ident(name)?;
                 let entries = var.entries();
                 let val = if let Some(e) = entries.get(0) {
                     Some(self.literal_expr(e)?)
                 } else {
                     None
                 };
+                if let Some(e) = entries.get(1) {
+                    return Err(KdlScriptParseError {
+                        message: format!("You have something extra after your enum case"),
+                        src: self.src.clone(),
+                        span: *e.span(),
+                        help: Some("remove this?".to_owned()),
+                    })?;
+                }
                 // TODO: deny any other members of `entries`
                 self.no_children(var)?;
                 Ok(EnumVariant { name, val })
@@ -691,8 +726,10 @@ impl Parser<'_> {
             .into_iter()
             .flat_map(|d| d.nodes())
             .map(|var| {
+                self.no_args(var)?;
                 let name = var.name();
                 let name = Spanned::new(name.value().to_owned(), *name.span());
+                let name = self.ident(name)?;
                 let fields = if var.children().is_some() {
                     Some(self.typed_var_children(var)?)
                 } else {
@@ -708,119 +745,10 @@ impl Parser<'_> {
         let name = if name.value() == "_" {
             None
         } else {
-            Some(Spanned::new(name.value().to_owned(), *name.span()))
+            let name = self.ident(Spanned::new(name.value().to_owned(), *name.span()))?;
+            Some(name)
         };
         Ok(name)
-    }
-
-    fn expr_rhs(&mut self, node: &KdlNode, expr_start: usize) -> Result<Spanned<Expr>> {
-        trace!("expr rhs");
-        let expr = if let Ok(string) = self.string_at(node, "", expr_start) {
-            if let Some((func, "")) = string.rsplit_once(':') {
-                trace!("  call expr");
-                let func = Spanned::new(func.to_owned(), Spanned::span(&string));
-                let args = self.func_args(node, expr_start + 1)?;
-                Expr::Call(CallExpr { func, args })
-            } else if node.children().is_some() {
-                trace!("  ctor expr");
-                let ty = string;
-                let vals = self.let_stmt_children(node)?;
-                Expr::Ctor(CtorExpr { ty, vals })
-            } else {
-                trace!("  path expr");
-                let mut parts = string.split('.');
-                let var = Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
-                let path = parts
-                    .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
-                    .collect();
-                Expr::Path(PathExpr { var, path })
-            }
-        } else if let Some(val) = node.entries().get(expr_start) {
-            trace!("  literal expr");
-            Expr::Literal(self.literal_expr(val)?)
-        } else {
-            return Err(KdlScriptParseError {
-                message: format!("I thought there was supposed to be an expression after here?"),
-                src: self.src.clone(),
-                span: *node.span(),
-                help: None,
-            })?;
-        };
-
-        Ok(Spanned::new(expr, *node.span()))
-    }
-
-    fn smol_expr(&mut self, node: &KdlNode, expr_at: usize) -> Result<Spanned<Expr>> {
-        trace!("smol expr");
-        let expr = if let Ok(string) = self.string_at(node, "", expr_at) {
-            if let Some((_func, "")) = string.rsplit_once(':') {
-                return Err(KdlScriptParseError {
-                    message: format!(
-                        "Nested function calls aren't supported because this is a shitpost"
-                    ),
-                    src: self.src.clone(),
-                    span: *node.span(),
-                    help: None,
-                })?;
-            } else if node.children().is_some() {
-                return Err(KdlScriptParseError {
-                    message: format!(
-                        "Ctors exprs can't be nested in function calls because this is a shitpost"
-                    ),
-                    src: self.src.clone(),
-                    span: *node.span(),
-                    help: None,
-                })?;
-            } else {
-                trace!("  path expr");
-                let mut parts = string.split('.');
-                let var = Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
-                let path = parts
-                    .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
-                    .collect();
-                Expr::Path(PathExpr { var, path })
-            }
-        } else if let Some(val) = node.entries().get(expr_at) {
-            trace!("  literal expr");
-            Expr::Literal(self.literal_expr(val)?)
-        } else {
-            return Err(KdlScriptParseError {
-                message: format!("I thought there was supposed to be an expression after here?"),
-                src: self.src.clone(),
-                span: *node.span(),
-                help: None,
-            })?;
-        };
-
-        Ok(Spanned::new(expr, *node.span()))
-    }
-
-    fn ty_ref(&mut self, input: &Spanned<String>) -> Result<TyRef> {
-        // TODO: validate this all better and write a proper parser
-        if &**input == "()" {
-            return Ok(TyRef::Empty);
-        }
-        if let Some(("", body)) = input.split_once('&') {
-            let ty = Spanned::new(body.to_string(), Spanned::span(input));
-            let ty = self.ty_ref(&ty)?;
-            return Ok(TyRef::Ref(Box::new(ty)));
-        }
-        if let Some(("", body)) = input.split_once('[') {
-            if let Some((body, "")) = body.rsplit_once(']') {
-                if let Some((ty, size)) = body.rsplit_once(';') {
-                    let size: u64 = size.parse().map_err(|_| KdlScriptParseError {
-                        message: format!("invalid array size"),
-                        src: self.src.clone(),
-                        span: Spanned::span(input),
-                        help: None,
-                    })?;
-                    let ty = Spanned::new(ty.to_string(), Spanned::span(input));
-                    let ty = self.ty_ref(&ty)?;
-                    return Ok(TyRef::Array(Box::new(ty), size));
-                }
-            }
-        }
-        return Ok(TyRef::Name(input.clone()));
     }
 
     fn func_args(&mut self, node: &KdlNode, expr_start: usize) -> Result<Vec<Spanned<Expr>>> {
@@ -828,18 +756,6 @@ impl Parser<'_> {
             .iter()
             .enumerate()
             .map(|(idx, _e)| self.smol_expr(node, expr_start + idx))
-            .collect()
-    }
-
-    fn let_stmt_children(&mut self, node: &KdlNode) -> Result<Vec<Spanned<LetStmt>>> {
-        node.children()
-            .into_iter()
-            .flat_map(|d| d.nodes())
-            .map(|var| {
-                let name = self.var_name_decl(var)?;
-                let expr = self.expr_rhs(var, 0)?;
-                Ok(Spanned::new(LetStmt { var: name, expr }, *var.span()))
-            })
             .collect()
     }
 
@@ -883,6 +799,131 @@ impl Parser<'_> {
             val,
         })
     }
+
+    fn ty_ref(&mut self, input: &Spanned<String>) -> Result<TyRef> {
+        let (_, ty_ref) = all_consuming(context("a type", tydent))(&***input)
+            .finish()
+            .map_err(|e| KdlScriptParseError {
+                message: String::from("couldn't parse type"),
+                src: self.src.clone(),
+                span: Spanned::span(input),
+                help: None,
+            })?;
+        Ok(ty_ref)
+    }
+
+    fn ident(&mut self, input: Spanned<String>) -> Result<Spanned<String>> {
+        let (_, _) =
+            all_consuming(context("a type", tydent))(&*input).map_err(|e| KdlScriptParseError {
+                message: String::from("invalid identifier"),
+                src: self.src.clone(),
+                span: Spanned::span(&input),
+                help: None,
+            })?;
+        Ok(input)
+    }
+}
+
+type NomResult<I, O> = IResult<I, O, VerboseError<I>>;
+
+/// Matches the syntax for tydent ("identifier, but for types") incl structural types like arrays/references.
+fn tydent(input: &str) -> NomResult<&str, TyRef> {
+    alt((tydent_ref, tydent_array, tydent_empty_tuple, tydent_named))(input)
+}
+
+/// Matches a reference type (&T)
+fn tydent_ref(input: &str) -> NomResult<&str, TyRef> {
+    let (input, pointee_ty) = preceded(
+        tag("&"),
+        context("pointee type", cut(preceded(many0(unicode_space), tydent))),
+    )(input)?;
+    Ok((input, TyRef::Ref(Box::new(pointee_ty))))
+}
+
+/// Matches an array type ([T; N])
+fn tydent_array(input: &str) -> NomResult<&str, TyRef> {
+    let (input, (elem_ty, array_len)) = delimited(
+        tag("["),
+        cut(separated_pair(
+            context(
+                "an element type",
+                delimited(many0(unicode_space), tydent, many0(unicode_space)),
+            ),
+            tag(";"),
+            context(
+                "an array length (integer)",
+                delimited(many0(unicode_space), array_len, many0(unicode_space)),
+            ),
+        )),
+        tag("]"),
+    )(input)?;
+
+    Ok((input, TyRef::Array(Box::new(elem_ty), array_len)))
+}
+
+/// Matches an array length (u64)
+fn array_len(input: &str) -> NomResult<&str, u64> {
+    nom::character::complete::u64(input)
+}
+
+/// Matches the empty tuple
+fn tydent_empty_tuple(input: &str) -> NomResult<&str, TyRef> {
+    let (input, _tup) = tag("()")(input)?;
+    Ok((input, TyRef::Empty))
+}
+
+/// Matches a named type
+fn tydent_named(input: &str) -> NomResult<&str, TyRef> {
+    let (input, (ty_name, generics)) = pair(
+        ident,
+        opt(delimited(
+            pair(unicode_space, tag("<")),
+            cut(separated_list1(
+                tag(","),
+                delimited(unicode_space, tydent_ref, unicode_space),
+            )),
+            tag(">"),
+        )),
+    )(input)?;
+
+    if let Some(_generics) = generics {
+        panic!("generics aren't yet implemented!");
+    }
+    // TODO: properly setup this span!
+    Ok((input, TyRef::Name(Spanned::from(ty_name.to_owned()))))
+}
+
+/// Matches an identifier
+fn ident(input: &str) -> NomResult<&str, &str> {
+    recognize(pair(
+        alt((alpha1, tag("_"))),
+        many0_count(alt((alphanumeric1, tag("_")))),
+    ))(input)
+}
+
+/// Matches various kinds of whitespace we allow
+fn unicode_space(input: &str) -> NomResult<&str, &str> {
+    alt((
+        tag(" "),
+        tag("\t"),
+        tag("\u{FEFF}"), // BOM
+        tag("\u{00A0}"),
+        tag("\u{1680}"),
+        tag("\u{2000}"),
+        tag("\u{2001}"),
+        tag("\u{2002}"),
+        tag("\u{2003}"),
+        tag("\u{2004}"),
+        tag("\u{2005}"),
+        tag("\u{2006}"),
+        tag("\u{2007}"),
+        tag("\u{2008}"),
+        tag("\u{2009}"),
+        tag("\u{200A}"),
+        tag("\u{202F}"),
+        tag("\u{205F}"),
+        tag("\u{3000}"),
+    ))(input)
 }
 
 pub use runnable::*;
@@ -949,6 +990,119 @@ mod runnable {
         Float(f64),
         Int(i64),
         Bool(bool),
+    }
+
+    impl Parser<'_> {
+        pub(crate) fn expr_rhs(
+            &mut self,
+            node: &KdlNode,
+            expr_start: usize,
+        ) -> Result<Spanned<Expr>> {
+            trace!("expr rhs");
+            let expr = if let Ok(string) = self.string_at(node, "", expr_start) {
+                if let Some((func, "")) = string.rsplit_once(':') {
+                    trace!("  call expr");
+                    let func = Spanned::new(func.to_owned(), Spanned::span(&string));
+                    let args = self.func_args(node, expr_start + 1)?;
+                    Expr::Call(CallExpr { func, args })
+                } else if node.children().is_some() {
+                    trace!("  ctor expr");
+                    let ty = string;
+                    let vals = self.let_stmt_children(node)?;
+                    Expr::Ctor(CtorExpr { ty, vals })
+                } else {
+                    trace!("  path expr");
+                    let mut parts = string.split('.');
+                    let var =
+                        Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
+                    let path = parts
+                        .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
+                        .collect();
+                    Expr::Path(PathExpr { var, path })
+                }
+            } else if let Some(val) = node.entries().get(expr_start) {
+                trace!("  literal expr");
+                Expr::Literal(self.literal_expr(val)?)
+            } else {
+                return Err(KdlScriptParseError {
+                    message: format!(
+                        "I thought there was supposed to be an expression after here?"
+                    ),
+                    src: self.src.clone(),
+                    span: *node.span(),
+                    help: None,
+                })?;
+            };
+
+            Ok(Spanned::new(expr, *node.span()))
+        }
+
+        pub(crate) fn smol_expr(
+            &mut self,
+            node: &KdlNode,
+            expr_at: usize,
+        ) -> Result<Spanned<Expr>> {
+            trace!("smol expr");
+            let expr = if let Ok(string) = self.string_at(node, "", expr_at) {
+                if let Some((_func, "")) = string.rsplit_once(':') {
+                    return Err(KdlScriptParseError {
+                        message: format!(
+                            "Nested function calls aren't supported because this is a shitpost"
+                        ),
+                        src: self.src.clone(),
+                        span: *node.span(),
+                        help: None,
+                    })?;
+                } else if node.children().is_some() {
+                    return Err(KdlScriptParseError {
+                        message: format!(
+                            "Ctors exprs can't be nested in function calls because this is a shitpost"
+                        ),
+                        src: self.src.clone(),
+                        span: *node.span(),
+                        help: None,
+                    })?;
+                } else {
+                    trace!("  path expr");
+                    let mut parts = string.split('.');
+                    let var =
+                        Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
+                    let path = parts
+                        .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
+                        .collect();
+                    Expr::Path(PathExpr { var, path })
+                }
+            } else if let Some(val) = node.entries().get(expr_at) {
+                trace!("  literal expr");
+                Expr::Literal(self.literal_expr(val)?)
+            } else {
+                return Err(KdlScriptParseError {
+                    message: format!(
+                        "I thought there was supposed to be an expression after here?"
+                    ),
+                    src: self.src.clone(),
+                    span: *node.span(),
+                    help: None,
+                })?;
+            };
+
+            Ok(Spanned::new(expr, *node.span()))
+        }
+
+        pub(crate) fn let_stmt_children(
+            &mut self,
+            node: &KdlNode,
+        ) -> Result<Vec<Spanned<LetStmt>>> {
+            node.children()
+                .into_iter()
+                .flat_map(|d| d.nodes())
+                .map(|var| {
+                    let name = self.var_name_decl(var)?;
+                    let expr = self.expr_rhs(var, 0)?;
+                    Ok(Spanned::new(LetStmt { var: name, expr }, *var.span()))
+                })
+                .collect()
+        }
     }
 
     impl ParsedProgram {

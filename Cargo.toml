@@ -10,9 +10,11 @@ repository = "https://github.com/Gankra/kdl-script"
 
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
+insta = "1.21.0"
 kdl = "4.5.0"
 linked-hash-map = "0.5.6"
 miette = { version = "5.3.0", features = ["fancy"] }
+nom = "7.1.1"
 serde = { version = "1.0.145", features = ["derive"] }
 thiserror = "1.0.37"
 tracing = "0.1.36"
