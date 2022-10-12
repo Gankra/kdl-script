@@ -16,7 +16,7 @@ fn struct_no_name() {
 fn union_no_name() {
     let program = r##"
         union {
-            default { }
+
         }
     "##;
     let mut compiler = crate::Compiler::new();

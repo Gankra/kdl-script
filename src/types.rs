@@ -9,8 +9,8 @@ use crate::Result;
 
 #[derive(Debug)]
 pub struct TypedProgram {
-    tcx: TyCtx,
-    funcs: Vec<Func>,
+    pub tcx: TyCtx,
+    pub funcs: Vec<Func>,
 }
 
 pub type TyIdx = usize;
@@ -32,17 +32,18 @@ pub enum Ty {
 
 #[derive(Debug, Clone)]
 pub struct Func {
-    name: Ident,
-    inputs: Vec<Arg>,
-    outputs: Vec<Arg>,
-    attrs: Vec<Attr>,
-    body: (),
+    pub name: Ident,
+    pub inputs: Vec<Arg>,
+    pub outputs: Vec<Arg>,
+    pub attrs: Vec<Attr>,
+    #[cfg(feature = "eval")]
+    pub body: (),
 }
 
 #[derive(Debug, Clone)]
 pub struct Arg {
-    name: Ident,
-    ty: TyIdx,
+    pub name: Ident,
+    pub ty: TyIdx,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -226,7 +227,7 @@ struct CheckEnv {
     tys: HashMap<Ident, TyIdx>,
 }
 
-pub fn typeck(comp: &mut Compiler, parsed: &ParsedProgram) -> Result<TypedProgram> {
+pub fn typeck(_comp: &mut Compiler, parsed: &ParsedProgram) -> Result<TypedProgram> {
     let mut tcx = TyCtx {
         tys: vec![],
         ty_map: HashMap::new(),

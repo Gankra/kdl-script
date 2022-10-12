@@ -6,7 +6,7 @@ use nom::branch::alt;
 use nom::bytes::complete::tag;
 use nom::character::complete::{alpha1, alphanumeric1};
 use nom::combinator::{all_consuming, cut, opt, recognize};
-use nom::error::{context, convert_error, VerboseError};
+use nom::error::{context, VerboseError};
 use nom::multi::{many0, many0_count, separated_list1};
 use nom::sequence::{delimited, pair, preceded, separated_pair};
 use nom::{Finish, IResult};
@@ -95,7 +95,7 @@ pub struct EnumDecl {
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: Ident,
-    pub val: Option<LiteralExpr>,
+    pub val: Option<IntExpr>,
 }
 
 #[derive(Debug, Clone)]
@@ -141,7 +141,7 @@ pub struct PunEnv {
 }
 
 impl PunSelector {
-    fn matches(&self, env: &PunEnv) -> bool {
+    pub fn matches(&self, env: &PunEnv) -> bool {
         use PunSelector::*;
         match self {
             Any(args) => args.iter().any(|s| s.matches(env)),
@@ -171,21 +171,22 @@ pub struct FuncDecl {
     pub inputs: Vec<TypedVar>,
     pub outputs: Vec<TypedVar>,
     pub attrs: Vec<Attr>,
+    #[cfg(feature = "eval")]
     pub body: Vec<Stmt>,
 }
 
 struct Parser<'a> {
-    comp: &'a mut Compiler,
+    // comp: &'a mut Compiler,
     src: Arc<NamedSource>,
     ast: &'a KdlDocument,
 }
 
 pub fn parse_kdl_script(
-    comp: &mut Compiler,
+    _comp: &mut Compiler,
     src: Arc<NamedSource>,
     ast: &KdlDocument,
 ) -> Result<ParsedProgram> {
-    let mut parser = Parser { comp, src, ast };
+    let mut parser = Parser { src, ast };
     parser.parse()
 }
 
@@ -194,6 +195,7 @@ impl Parser<'_> {
         trace!("parsing");
 
         let mut program = self.parse_module(self.ast)?;
+        #[cfg(feature = "eval")]
         program.add_builtins()?;
 
         Ok(program)
@@ -443,6 +445,7 @@ impl Parser<'_> {
         let name = self.ident(name)?;
         let mut inputs = vec![];
         let mut outputs = vec![];
+        #[cfg(feature = "eval")]
         let mut body = vec![];
 
         let mut reached_body = false;
@@ -504,25 +507,37 @@ impl Parser<'_> {
                     output_span = Some(*stmt.name().span());
                     continue;
                 }
-                "let" => {
-                    trace!("let stmt");
-                    let name = self.string_at(stmt, "variable name", 0)?;
-                    let name = self.ident(name)?;
-                    let name = if &*name == "_" { None } else { Some(name) };
-                    let expr = self.expr_rhs(stmt, 1)?;
-                    body.push(Stmt::Let(LetStmt { var: name, expr }));
-                }
-                "return" => {
-                    trace!("return stmt");
-                    let expr = self.expr_rhs(stmt, 0)?;
-                    body.push(Stmt::Return(ReturnStmt { expr }));
-                }
-                "print" => {
-                    trace!("print stmt");
-                    let expr = self.expr_rhs(stmt, 0)?;
-                    body.push(Stmt::Print(PrintStmt { expr }));
-                }
                 x => {
+                    #[cfg(feature = "eval")]
+                    match x {
+                        "let" => {
+                            trace!("let stmt");
+                            let name = self.string_at(stmt, "variable name", 0)?;
+                            let name = self.ident(name)?;
+                            let name = if &*name == "_" { None } else { Some(name) };
+                            let expr = self.expr_rhs(stmt, 1)?;
+                            body.push(Stmt::Let(LetStmt { var: name, expr }));
+                        }
+                        "return" => {
+                            trace!("return stmt");
+                            let expr = self.expr_rhs(stmt, 0)?;
+                            body.push(Stmt::Return(ReturnStmt { expr }));
+                        }
+                        "print" => {
+                            trace!("print stmt");
+                            let expr = self.expr_rhs(stmt, 0)?;
+                            body.push(Stmt::Print(PrintStmt { expr }));
+                        }
+                        x => {
+                            return Err(KdlScriptParseError {
+                                message: format!("I don't know what a '{x}' statement is"),
+                                src: self.src.clone(),
+                                span: *stmt.name().span(),
+                                help: None,
+                            })?;
+                        }
+                    }
+                    #[cfg(not(feature = "eval"))]
                     return Err(KdlScriptParseError {
                         message: format!("I don't know what a '{x}' statement is"),
                         src: self.src.clone(),
@@ -531,6 +546,7 @@ impl Parser<'_> {
                     })?;
                 }
             }
+
             reached_body = true;
         }
 
@@ -538,6 +554,7 @@ impl Parser<'_> {
             name,
             inputs,
             outputs,
+            #[cfg(feature = "eval")]
             body,
             attrs,
         })
@@ -702,7 +719,7 @@ impl Parser<'_> {
                 let name = self.ident(name)?;
                 let entries = var.entries();
                 let val = if let Some(e) = entries.get(0) {
-                    Some(self.literal_expr(e)?)
+                    Some(self.int_expr(e)?)
                 } else {
                     None
                 };
@@ -751,59 +768,10 @@ impl Parser<'_> {
         Ok(name)
     }
 
-    fn func_args(&mut self, node: &KdlNode, expr_start: usize) -> Result<Vec<Spanned<Expr>>> {
-        node.entries()[expr_start..]
-            .iter()
-            .enumerate()
-            .map(|(idx, _e)| self.smol_expr(node, expr_start + idx))
-            .collect()
-    }
-
-    fn literal_expr(&mut self, entry: &KdlEntry) -> Result<LiteralExpr> {
-        if entry.name().is_some() {
-            return Err(KdlScriptParseError {
-                message: format!("Named values don't belong here, only literals"),
-                src: self.src.clone(),
-                span: *entry.span(),
-                help: Some("try removing the name".to_owned()),
-            })?;
-        }
-
-        let val = match entry.value() {
-            kdl::KdlValue::RawString(_) | kdl::KdlValue::String(_) => {
-                return Err(KdlScriptParseError {
-                    message: format!("strings aren't supported literals"),
-                    src: self.src.clone(),
-                    span: *entry.span(),
-                    help: None,
-                })?;
-            }
-            kdl::KdlValue::Null => {
-                return Err(KdlScriptParseError {
-                    message: format!("nulls aren't supported literals"),
-                    src: self.src.clone(),
-                    span: *entry.span(),
-                    help: None,
-                })?;
-            }
-            kdl::KdlValue::Base2(int)
-            | kdl::KdlValue::Base8(int)
-            | kdl::KdlValue::Base10(int)
-            | kdl::KdlValue::Base16(int) => Literal::Int(*int),
-            kdl::KdlValue::Base10Float(val) => Literal::Float(*val),
-            kdl::KdlValue::Bool(val) => Literal::Bool(*val),
-        };
-
-        Ok(LiteralExpr {
-            span: *entry.span(),
-            val,
-        })
-    }
-
     fn ty_ref(&mut self, input: &Spanned<String>) -> Result<TyRef> {
         let (_, ty_ref) = all_consuming(context("a type", tydent))(&***input)
             .finish()
-            .map_err(|e| KdlScriptParseError {
+            .map_err(|_e| KdlScriptParseError {
                 message: String::from("couldn't parse type"),
                 src: self.src.clone(),
                 span: Spanned::span(input),
@@ -813,14 +781,44 @@ impl Parser<'_> {
     }
 
     fn ident(&mut self, input: Spanned<String>) -> Result<Spanned<String>> {
-        let (_, _) =
-            all_consuming(context("a type", tydent))(&*input).map_err(|e| KdlScriptParseError {
+        let (_, _) = all_consuming(context("a type", tydent))(&*input).map_err(|_e| {
+            KdlScriptParseError {
                 message: String::from("invalid identifier"),
                 src: self.src.clone(),
                 span: Spanned::span(&input),
                 help: None,
-            })?;
+            }
+        })?;
         Ok(input)
+    }
+
+    fn int_expr(&mut self, entry: &KdlEntry) -> Result<IntExpr> {
+        if entry.name().is_some() {
+            return Err(KdlScriptParseError {
+                message: format!("Named values don't belong here, only literals"),
+                src: self.src.clone(),
+                span: *entry.span(),
+                help: Some("try removing the name".to_owned()),
+            })?;
+        }
+        let val = match entry.value() {
+            kdl::KdlValue::Base2(int)
+            | kdl::KdlValue::Base8(int)
+            | kdl::KdlValue::Base10(int)
+            | kdl::KdlValue::Base16(int) => *int,
+            _ => {
+                return Err(KdlScriptParseError {
+                    message: String::from("must be an integer"),
+                    src: self.src.clone(),
+                    span: *entry.span(),
+                    help: None,
+                })?;
+            }
+        };
+        Ok(IntExpr {
+            span: *entry.span(),
+            val,
+        })
     }
 }
 
@@ -926,7 +924,15 @@ fn unicode_space(input: &str) -> NomResult<&str, &str> {
     ))(input)
 }
 
+#[derive(Debug, Clone)]
+pub struct IntExpr {
+    pub span: SourceSpan,
+    pub val: i64,
+}
+
+#[cfg(feature = "eval")]
 pub use runnable::*;
+#[cfg(feature = "eval")]
 mod runnable {
     use super::*;
 
@@ -993,6 +999,59 @@ mod runnable {
     }
 
     impl Parser<'_> {
+        pub(crate) fn func_args(
+            &mut self,
+            node: &KdlNode,
+            expr_start: usize,
+        ) -> Result<Vec<Spanned<Expr>>> {
+            node.entries()[expr_start..]
+                .iter()
+                .enumerate()
+                .map(|(idx, _e)| self.smol_expr(node, expr_start + idx))
+                .collect()
+        }
+
+        pub(crate) fn literal_expr(&mut self, entry: &KdlEntry) -> Result<LiteralExpr> {
+            if entry.name().is_some() {
+                return Err(KdlScriptParseError {
+                    message: format!("Named values don't belong here, only literals"),
+                    src: self.src.clone(),
+                    span: *entry.span(),
+                    help: Some("try removing the name".to_owned()),
+                })?;
+            }
+
+            let val = match entry.value() {
+                kdl::KdlValue::RawString(_) | kdl::KdlValue::String(_) => {
+                    return Err(KdlScriptParseError {
+                        message: format!("strings aren't supported literals"),
+                        src: self.src.clone(),
+                        span: *entry.span(),
+                        help: None,
+                    })?;
+                }
+                kdl::KdlValue::Null => {
+                    return Err(KdlScriptParseError {
+                        message: format!("nulls aren't supported literals"),
+                        src: self.src.clone(),
+                        span: *entry.span(),
+                        help: None,
+                    })?;
+                }
+                kdl::KdlValue::Base2(int)
+                | kdl::KdlValue::Base8(int)
+                | kdl::KdlValue::Base10(int)
+                | kdl::KdlValue::Base16(int) => Literal::Int(*int),
+                kdl::KdlValue::Base10Float(val) => Literal::Float(*val),
+                kdl::KdlValue::Bool(val) => Literal::Bool(*val),
+            };
+
+            Ok(LiteralExpr {
+                span: *entry.span(),
+                val,
+            })
+        }
+
         pub(crate) fn expr_rhs(
             &mut self,
             node: &KdlNode,
@@ -1127,6 +1186,7 @@ mod runnable {
                         ty: TyRef::Name(Spanned::from(String::from("i64"))),
                     }],
                     attrs: vec![],
+
                     body: vec![],
                 },
             );

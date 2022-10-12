@@ -1,5 +1,3 @@
-use crate::KdlScriptError;
-
 #[test]
 fn prim_struct() -> Result<(), miette::Report> {
     let program = r##"
