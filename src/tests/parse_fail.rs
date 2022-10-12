@@ -8,7 +8,7 @@ fn struct_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -21,7 +21,7 @@ fn union_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -34,7 +34,7 @@ fn enum_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -47,7 +47,7 @@ fn tagged_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -60,7 +60,7 @@ fn pun_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn alias_no_name() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -84,7 +84,7 @@ fn struct_int_as_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -97,7 +97,7 @@ fn struct_no_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -108,7 +108,7 @@ fn alias_int_as_alias() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn alias_no_alias() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn union_int_as_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -145,7 +145,7 @@ fn union_no_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -160,7 +160,7 @@ fn tagged_field_sub_block() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -175,7 +175,7 @@ fn tagged_int_as_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn tagged_no_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -205,7 +205,7 @@ fn tagged_prop_field_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -220,7 +220,7 @@ fn tagged_prop_field_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -235,7 +235,7 @@ fn tagged_prop_case() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn tagged_prop_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -265,7 +265,7 @@ fn tagged_prop_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -278,7 +278,7 @@ fn struct_field_block() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -291,7 +291,7 @@ fn struct_prop_field_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -304,7 +304,7 @@ fn struct_prop_field_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -317,7 +317,7 @@ fn struct_prop_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -330,7 +330,7 @@ fn struct_prop_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -343,7 +343,7 @@ fn struct_int_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -356,7 +356,7 @@ fn struct_int_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -369,7 +369,7 @@ fn union_field_block() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -382,7 +382,7 @@ fn union_prop_field_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -395,7 +395,7 @@ fn union_prop_field_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -408,7 +408,7 @@ fn union_prop_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -421,7 +421,7 @@ fn union_prop_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -434,7 +434,7 @@ fn union_int_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -447,7 +447,7 @@ fn union_int_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -460,7 +460,7 @@ fn enum_field_block() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -473,7 +473,7 @@ fn enum_field_val_block() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -486,7 +486,7 @@ fn enum_prop_field_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -499,7 +499,7 @@ fn enum_prop_field_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -512,7 +512,7 @@ fn enum_prop_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -525,7 +525,7 @@ fn enum_prop_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -538,7 +538,7 @@ fn enum_int_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -551,7 +551,7 @@ fn enum_int_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -564,7 +564,7 @@ fn pun_lang_no_body() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -579,7 +579,7 @@ fn pun_lang_no_lang() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -592,7 +592,7 @@ fn pun_default_no_body() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -605,7 +605,7 @@ fn pun_unknown_selector() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -620,7 +620,7 @@ fn pun_default_lang() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -635,7 +635,7 @@ fn pun_prop_lang_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -650,7 +650,7 @@ fn pub_prop_lang_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -665,7 +665,7 @@ fn pun_prop_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -680,7 +680,7 @@ fn pun_prop_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -695,7 +695,7 @@ fn pun_int_name_after() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -710,7 +710,7 @@ fn pun_int_name_before() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -725,7 +725,7 @@ fn pun_two_names() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -738,7 +738,7 @@ fn hanging_ref() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -751,7 +751,7 @@ fn unclosed_array() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -764,7 +764,7 @@ fn undelimited_array() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -777,7 +777,7 @@ fn unopened_array() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -790,7 +790,7 @@ fn empty_tuple_space() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -803,7 +803,7 @@ fn tyname_space() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -816,7 +816,7 @@ fn generic() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -829,7 +829,7 @@ fn invalid_tyname_int() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -842,7 +842,7 @@ fn invalid_tyname_at() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -855,7 +855,7 @@ fn invalid_tyname_pound() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -868,7 +868,7 @@ fn invalid_tyname_dash() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -881,7 +881,7 @@ fn invalid_tyname_leading_int() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -894,7 +894,7 @@ fn struct_invalid_name_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -907,7 +907,7 @@ fn struct_invalid_field_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -920,7 +920,7 @@ fn union_invalid_name_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -933,7 +933,7 @@ fn union_invalid_field_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -946,7 +946,7 @@ fn enum_invalid_field_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -959,7 +959,7 @@ fn enum_invalid_name_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -970,7 +970,7 @@ fn alias_invalid_field_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -985,7 +985,7 @@ fn pun_invalid_name_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -1000,7 +1000,7 @@ fn tagged_invalid_name_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -1015,7 +1015,7 @@ fn tagged_invalid_variant_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -1030,7 +1030,7 @@ fn tagged_invalid_subfield_ident() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -1045,7 +1045,7 @@ fn pun_unfulfilled() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 /*

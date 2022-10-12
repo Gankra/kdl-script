@@ -17,9 +17,9 @@ enum Val {
 }
 
 pub fn eval_kdl_script(_src: &Arc<NamedSource>, program: &ParsedProgram) -> Result<i64> {
-    let main = lookup_func(&program, "main");
+    let main = lookup_func(program, "main");
 
-    let val = eval_call(&program, main, HashMap::default());
+    let val = eval_call(program, main, HashMap::default());
 
     match val {
         Val::Int(val) => Ok(val),
@@ -143,10 +143,7 @@ fn eval_add(input: HashMap<String, Val>) -> Val {
 }
 
 fn lookup_func<'a>(program: &'a ParsedProgram, func_name: &str) -> &'a FuncDecl {
-    let func = program
-        .funcs
-        .iter()
-        .find(|(name, _f)| &***name == func_name);
+    let func = program.funcs.iter().find(|(name, _f)| ***name == func_name);
     if func.is_none() {
         panic!("couldn't find {func_name} function");
     }

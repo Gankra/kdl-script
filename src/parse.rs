@@ -146,7 +146,7 @@ impl PunSelector {
         match self {
             Any(args) => args.iter().any(|s| s.matches(env)),
             // All(args) => args.iter().all(|s| s.matches(env)),
-            Lang(lang) => &env.lang == &**lang,
+            Lang(lang) => env.lang == **lang,
             Default => true,
         }
     }
@@ -216,7 +216,7 @@ impl Parser<'_> {
             }
 
             // Ok it's a real item, grab all the attributes, they belong to it
-            let attrs = std::mem::replace(&mut cur_attrs, vec![]);
+            let attrs = std::mem::take(&mut cur_attrs);
 
             match name {
                 "fn" => {
@@ -337,7 +337,7 @@ impl Parser<'_> {
                         let node_ident = item.name().span();
                         let after_ident = node_ident.offset() + node_ident.len();
                         return Err(KdlScriptParseError {
-                            message: format!("Hey I need a lang name (string) here!"),
+                            message: "Hey I need a lang name (string) here!".to_string(),
                             src: self.src.clone(),
                             span: (after_ident..after_ident).into(),
                             help: None,
@@ -385,7 +385,7 @@ impl Parser<'_> {
             // Don't want any functions
             if let Some((_name, func)) = defs.funcs.iter().next() {
                 return Err(KdlScriptParseError {
-                    message: format!("puns can't contain function decls"),
+                    message: "puns can't contain function decls".to_string(),
                     src: self.src.clone(),
                     span: Spanned::span(&func.name),
                     help: None,
@@ -401,7 +401,7 @@ impl Parser<'_> {
                     final_ty = Some(ty);
                 } else {
                     return Err(KdlScriptParseError {
-                        message: format!("pun declared a type other than what it should have"),
+                        message: "pun declared a type other than what it should have".to_string(),
                         src: self.src.clone(),
                         span: Spanned::span(&ty_name),
                         help: None,
@@ -413,20 +413,20 @@ impl Parser<'_> {
             if let Some(ty) = final_ty {
                 Ok(ty)
             } else {
-                return Err(KdlScriptParseError {
-                    message: format!("pun block failed to define the type it puns!"),
+                Err(KdlScriptParseError {
+                    message: "pun block failed to define the type it puns!".to_string(),
                     src: self.src.clone(),
                     span: *block.span(),
                     help: None,
-                })?;
+                })?
             }
         } else {
-            return Err(KdlScriptParseError {
-                message: format!("pun blocks need bodies"),
+            Err(KdlScriptParseError {
+                message: "pun blocks need bodies".to_string(),
                 src: self.src.clone(),
                 span: *block.span(),
                 help: None,
-            })?;
+            })?
         }
     }
 
@@ -457,7 +457,7 @@ impl Parser<'_> {
                     trace!("fn input");
                     if reached_body {
                         return Err(KdlScriptParseError {
-                            message: format!("input declaration must come before the body"),
+                            message: "input declaration must come before the body".to_string(),
                             src: self.src.clone(),
                             span: *stmt.name().span(),
                             help: None,
@@ -465,7 +465,7 @@ impl Parser<'_> {
                     }
                     if let Some(_old_input) = input_span {
                         return Err(KdlScriptParseError {
-                            message: format!("duplicate input block"),
+                            message: "duplicate input block".to_string(),
                             src: self.src.clone(),
                             span: *stmt.name().span(),
                             help: None,
@@ -473,7 +473,7 @@ impl Parser<'_> {
                     }
                     if let Some(_old_output) = output_span {
                         return Err(KdlScriptParseError {
-                            message: format!("It's confusing to declare inputs after outputs"),
+                            message: "It's confusing to declare inputs after outputs".to_string(),
                             src: self.src.clone(),
                             span: *stmt.name().span(),
                             help: Some("Move this before the output block".to_string()),
@@ -488,7 +488,7 @@ impl Parser<'_> {
                     trace!("fn output");
                     if reached_body {
                         return Err(KdlScriptParseError {
-                            message: format!("output declaration must come before the body"),
+                            message: "output declaration must come before the body".to_string(),
                             src: self.src.clone(),
                             span: *stmt.name().span(),
                             help: None,
@@ -496,7 +496,7 @@ impl Parser<'_> {
                     }
                     if let Some(_old_output) = output_span {
                         return Err(KdlScriptParseError {
-                            message: format!("duplicate output block"),
+                            message: "duplicate output block".to_string(),
                             src: self.src.clone(),
                             span: *stmt.name().span(),
                             help: None,
@@ -593,11 +593,11 @@ impl Parser<'_> {
 
     fn string_list(&mut self, entries: &[KdlEntry]) -> Result<Vec<Spanned<String>>> {
         entries
-            .into_iter()
+            .iter()
             .map(|e| -> Result<Spanned<String>> {
                 if e.name().is_some() {
                     return Err(KdlScriptParseError {
-                        message: format!("Named values don't belong here, only strings"),
+                        message: "Named values don't belong here, only strings".to_string(),
                         src: self.src.clone(),
                         span: *e.span(),
                         help: Some("try removing the name".to_owned()),
@@ -607,14 +607,12 @@ impl Parser<'_> {
                     kdl::KdlValue::RawString(s) | kdl::KdlValue::String(s) => {
                         Ok(Spanned::new(s.clone(), *e.span()))
                     }
-                    _ => {
-                        return Err(KdlScriptParseError {
-                            message: format!("This should be a string"),
-                            src: self.src.clone(),
-                            span: *e.span(),
-                            help: Some("try adding quotes?".to_owned()),
-                        })?;
-                    }
+                    _ => Err(KdlScriptParseError {
+                        message: "This should be a string".to_string(),
+                        src: self.src.clone(),
+                        span: *e.span(),
+                        help: Some("try adding quotes?".to_owned()),
+                    })?,
                 }
             })
             .collect()
@@ -639,7 +637,7 @@ impl Parser<'_> {
         if let Some(e) = entries.get(offset) {
             if e.name().is_some() {
                 return Err(KdlScriptParseError {
-                    message: format!("Named values don't belong here, only strings"),
+                    message: "Named values don't belong here, only strings".to_string(),
                     src: self.src.clone(),
                     span: *e.span(),
                     help: Some("try removing the name".to_owned()),
@@ -650,31 +648,29 @@ impl Parser<'_> {
                 kdl::KdlValue::RawString(s) | kdl::KdlValue::String(s) => {
                     Ok(Spanned::new(s.clone(), *e.span()))
                 }
-                _ => {
-                    return Err(KdlScriptParseError {
-                        message: format!("This should be a {desc} (string)"),
-                        src: self.src.clone(),
-                        span: *e.span(),
-                        help: Some("try adding quotes".to_owned()),
-                    })?;
-                }
+                _ => Err(KdlScriptParseError {
+                    message: format!("This should be a {desc} (string)"),
+                    src: self.src.clone(),
+                    span: *e.span(),
+                    help: Some("try adding quotes".to_owned()),
+                })?,
             }
         } else {
             let node_ident = node.name().span();
             let after_ident = node_ident.offset() + node_ident.len();
-            return Err(KdlScriptParseError {
+            Err(KdlScriptParseError {
                 message: format!("Hey I need a {desc} (string) here!"),
                 src: self.src.clone(),
                 span: (after_ident..after_ident).into(),
                 help: None,
-            })?;
+            })?
         }
     }
 
     fn no_args(&mut self, node: &KdlNode) -> Result<()> {
         if let Some(entry) = node.entries().get(0) {
             return Err(KdlScriptParseError {
-                message: format!("This shouldn't have arguments"),
+                message: "This shouldn't have arguments".to_string(),
                 src: self.src.clone(),
                 span: *entry.span(),
                 help: Some("delete them?".to_string()),
@@ -686,7 +682,7 @@ impl Parser<'_> {
     fn no_children(&mut self, node: &KdlNode) -> Result<()> {
         if let Some(children) = node.children() {
             return Err(KdlScriptParseError {
-                message: format!("These children should never have been born"),
+                message: "These children should never have been born".to_string(),
                 src: self.src.clone(),
                 span: *children.span(),
                 help: Some("delete this block?".to_string()),
@@ -725,7 +721,7 @@ impl Parser<'_> {
                 };
                 if let Some(e) = entries.get(1) {
                     return Err(KdlScriptParseError {
-                        message: format!("You have something extra after your enum case"),
+                        message: "You have something extra after your enum case".to_string(),
                         src: self.src.clone(),
                         span: *e.span(),
                         help: Some("remove this?".to_owned()),
@@ -795,7 +791,7 @@ impl Parser<'_> {
     fn int_expr(&mut self, entry: &KdlEntry) -> Result<IntExpr> {
         if entry.name().is_some() {
             return Err(KdlScriptParseError {
-                message: format!("Named values don't belong here, only literals"),
+                message: "Named values don't belong here, only literals".to_string(),
                 src: self.src.clone(),
                 span: *entry.span(),
                 help: Some("try removing the name".to_owned()),
@@ -1014,7 +1010,7 @@ mod runnable {
         pub(crate) fn literal_expr(&mut self, entry: &KdlEntry) -> Result<LiteralExpr> {
             if entry.name().is_some() {
                 return Err(KdlScriptParseError {
-                    message: format!("Named values don't belong here, only literals"),
+                    message: "Named values don't belong here, only literals".to_string(),
                     src: self.src.clone(),
                     span: *entry.span(),
                     help: Some("try removing the name".to_owned()),
@@ -1024,7 +1020,7 @@ mod runnable {
             let val = match entry.value() {
                 kdl::KdlValue::RawString(_) | kdl::KdlValue::String(_) => {
                     return Err(KdlScriptParseError {
-                        message: format!("strings aren't supported literals"),
+                        message: "strings aren't supported literals".to_string(),
                         src: self.src.clone(),
                         span: *entry.span(),
                         help: None,
@@ -1032,7 +1028,7 @@ mod runnable {
                 }
                 kdl::KdlValue::Null => {
                     return Err(KdlScriptParseError {
-                        message: format!("nulls aren't supported literals"),
+                        message: "nulls aren't supported literals".to_string(),
                         src: self.src.clone(),
                         span: *entry.span(),
                         help: None,
@@ -1084,9 +1080,8 @@ mod runnable {
                 Expr::Literal(self.literal_expr(val)?)
             } else {
                 return Err(KdlScriptParseError {
-                    message: format!(
-                        "I thought there was supposed to be an expression after here?"
-                    ),
+                    message: "I thought there was supposed to be an expression after here?"
+                        .to_string(),
                     src: self.src.clone(),
                     span: *node.span(),
                     help: None,
@@ -1105,18 +1100,16 @@ mod runnable {
             let expr = if let Ok(string) = self.string_at(node, "", expr_at) {
                 if let Some((_func, "")) = string.rsplit_once(':') {
                     return Err(KdlScriptParseError {
-                        message: format!(
+                        message:
                             "Nested function calls aren't supported because this is a shitpost"
-                        ),
+                                .to_string(),
                         src: self.src.clone(),
                         span: *node.span(),
                         help: None,
                     })?;
                 } else if node.children().is_some() {
                     return Err(KdlScriptParseError {
-                        message: format!(
-                            "Ctors exprs can't be nested in function calls because this is a shitpost"
-                        ),
+                        message: "Ctors exprs can't be nested in function calls because this is a shitpost".to_string(),
                         src: self.src.clone(),
                         span: *node.span(),
                         help: None,
@@ -1136,9 +1129,8 @@ mod runnable {
                 Expr::Literal(self.literal_expr(val)?)
             } else {
                 return Err(KdlScriptParseError {
-                    message: format!(
-                        "I thought there was supposed to be an expression after here?"
-                    ),
+                    message: "I thought there was supposed to be an expression after here?"
+                        .to_string(),
                     src: self.src.clone(),
                     span: *node.span(),
                     help: None,

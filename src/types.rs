@@ -436,7 +436,7 @@ impl TyCtx {
                         });
                         let real_decl = &block.decl;
                         let real = self.push_nominal_decl_incomplete(decl.name.clone());
-                        self.complete_nominal_decl(&decl.name, &real_decl);
+                        self.complete_nominal_decl(&decl.name, real_decl);
                         self.envs.pop();
 
                         PunBlockTy {
@@ -538,7 +538,7 @@ impl TyCtx {
     pub fn format_ty(&self, ty: TyIdx) -> String {
         match self.realize_ty(ty) {
             Ty::Primitive(prim) => format!("{:?}", prim).to_lowercase(),
-            Ty::Empty => format!("()"),
+            Ty::Empty => "()".to_string(),
             Ty::Struct(decl) => format!("{}", decl.name),
             Ty::Enum(decl) => format!("{}", decl.name),
             Ty::Tagged(decl) => format!("{}", decl.name),

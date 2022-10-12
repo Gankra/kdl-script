@@ -8,7 +8,7 @@ fn no_primitive() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
 
 #[test]
@@ -21,5 +21,5 @@ fn no_arg_type() {
     "##;
     let mut compiler = crate::Compiler::new();
     let res = compiler.compile_string("test.kdl", program.to_owned());
-    res.map_err(|e| miette::Report::new(e)).unwrap();
+    res.map_err(miette::Report::new).unwrap();
 }
