@@ -30,3 +30,11 @@ fn real_main() -> std::result::Result<(), miette::Report> {
     }
     Ok(())
 }
+
+/*
+fn backend_to_the_future(program: &Arc<TypedProgram>) {
+    
+}
+
+fn emit_types_for_funcs
+ */
