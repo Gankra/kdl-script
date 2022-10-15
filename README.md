@@ -495,7 +495,7 @@ fn "add" {
 ```
 
 
-# Why Did You Make It So You Could Execute
+# Why Did You Make KDL Documents Executable???
 
 To spite parsers.
 
