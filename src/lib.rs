@@ -8,12 +8,12 @@ pub use parse::{KdlScriptParseError, ParsedProgram, PunEnv};
 pub use types::{Definition, DefinitionGraph, KdlScriptTypeError, TypedProgram};
 
 #[cfg(feature = "eval")]
-mod eval;
-mod parse;
-mod spanned;
+pub mod eval;
+pub mod parse;
+pub mod spanned;
 #[cfg(test)]
 mod tests;
-mod types;
+pub mod types;
 
 #[derive(Debug, Error, Diagnostic)]
 pub enum KdlScriptError {

@@ -36,7 +36,7 @@ pub struct KdlScriptTypeError {
 /// Puns still exist because a TypedProgram is abstract over every possible
 /// output language to share the workload between each concrete backend.
 /// The next step in lowering the program is to ask it to resolve
-/// the puns for a specific [`crate::PunEnv`][] with [`TypedProgram::ty_graph`].
+/// the puns for a specific [`crate::PunEnv`][] with [`TypedProgram::definition_graph`].
 /// Which will also handle computing the order of declarations for languages like C.
 #[derive(Debug)]
 pub struct TypedProgram {
@@ -281,27 +281,27 @@ pub struct PunBlockTy {
 /// may refer to names that are out of scope, and two names that are equal
 /// (as strings) may not actually refer to the same type declaration.
 ///
-/// To handle this, whenever a new named type is declared ([push_struct_decl][]),
-/// we generate a unique type id (TyIdx) for it. Then whenever we encounter
+/// To handle this, whenever a new named type is declared ([TyCtx::push_nominal_decl_incomplete][]),
+/// we generate a unique type id ([`TyIdx`][]) for it. Then whenever we encounter
 /// a reference to a Named type, we lookup the currently in scope TyIdx for that
 /// name, and use that instead. Named type scoping is managed by `envs`.
 ///
 /// Replacing type names with type ids requires a change of representation,
-/// which is why we have [Ty][]. A Ty is the *structure* of a type with all subtypes
-/// resolved to TyIdx's (e.g. a field of a tuple, the return type of a function).
+/// which is why we have [`Ty`][]. A Ty is the *structure* of a type with all types
+/// it refers to resolved to TyIdx's (e.g. a field of a tuple, the return type of a function).
 /// For convenience, non-typing metadata may also be stored in a Ty.
 ///
-/// So a necessary intermediate step of converting TyName to a TyIdx is to first
+/// So a necessary intermediate step of converting an Ident to a TyIdx is to first
 /// convert it to a Ty. This intermediate value is stored in `tys`.
-/// If you have a TyIdx, you can get its Ty with [realize_ty][]. This lets you
+/// If you have a TyIdx, you can get its Ty with [`realize_ty`][]. This lets you
 /// e.g. check if a value being called is actually a Func, and if it is,
 /// what the type ids of its arguments/return types are.
 ///
 /// `ty_map` stores all the *structural* Tys we've seen before (everything that
 /// *isn't* TyName::Named), ensuring two structural types have the same TyIdx.
-/// i.e. `(Bool, Int)` will have the same TyIdx everywhere it occurs.
+/// i.e. `[u32; 4]` will have the same TyIdx everywhere it occurs.
 #[derive(Debug)]
-pub struct TyCtx {
+pub(crate) struct TyCtx {
     /// The source code this is from, for resolving spans/errors.
     src: Arc<NamedSource>,
 
@@ -768,7 +768,7 @@ impl TypedProgram {
     /// * Producing minimized examples for subsets of the program (by only emitting the types
     ///   needed for a single function).
     ///
-    /// The next step in lowering the program is to query [`DefinitionGraph::decls`][] with the
+    /// The next step in lowering the program is to query [`DefinitionGraph::definitions`][] with the
     /// functions you want to emit!
     ///
     /// This can fail if the given [`PunEnv`][] fails to resolve a [`PunTy`][].
