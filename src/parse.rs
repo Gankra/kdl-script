@@ -1,3 +1,11 @@
+//! Parsing and AST types.
+//!
+//! The entrypoint is to invoke [`parse_kdl_script`][] which is implicitly
+//! handled by [`Compiler::compile_path`][] or [`Compiler::compile_string`][]
+//! and will produce a [`ParsedProgram`][].
+//!
+//! Things like name resolution are handled by the [type checker](`crate::types`).
+
 use std::sync::Arc;
 
 use kdl::{KdlDocument, KdlEntry, KdlNode};
@@ -16,9 +24,11 @@ use tracing::trace;
 use crate::spanned::Spanned;
 use crate::{Compiler, Result};
 
+/// A string that may refer to another item like a type of function
 pub type Ident = Spanned<String>;
 pub type StableMap<K, V> = linked_hash_map::LinkedHashMap<K, V>;
 
+/// An error that occured during parsing
 #[derive(Debug, Error, Diagnostic)]
 #[error("{message}")]
 pub struct KdlScriptParseError {
@@ -31,61 +41,125 @@ pub struct KdlScriptParseError {
     pub help: Option<String>,
 }
 
+/// A Parsed KDLScript program
 #[derive(Debug, Clone)]
 pub struct ParsedProgram {
+    /// The type definitions
     pub tys: StableMap<Ident, TyDecl>,
+    /// The function definitions
     pub funcs: StableMap<Ident, FuncDecl>,
+    /// Where in funcs builtins like `+` start (if at all).
     pub builtin_funcs_start: usize,
 }
 
+/// A Type declaration
 #[derive(Debug, Clone)]
 pub enum TyDecl {
+    /// A Struct
     Struct(StructDecl),
+    /// An untagged union
     Union(UnionDecl),
+    /// A c-style enum
     Enum(EnumDecl),
+    /// A tagged union (rust-style enum)
     Tagged(TaggedDecl),
+    /// A transparent type alias
     Alias(AliasDecl),
+    /// A type pun
     Pun(PunDecl),
 }
 
+/// A type "name" (which may be structural like `[u32; 4]`).
+///
+/// It's like an ident but, for types -- a tydent!
 #[derive(Debug, Clone)]
-pub enum TyRef {
+pub enum Tydent {
+    /// A named type (the type checker will resolve this)
     Name(Ident),
-    Array(Box<Spanned<TyRef>>, u64),
-    Ref(Box<Spanned<TyRef>>),
+    /// A fixed length array
+    Array(Box<Spanned<Tydent>>, u64),
+    /// A by-reference type
+    Ref(Box<Spanned<Tydent>>),
+    /// The empty tuple -- `()`
     Empty,
 }
 
+/// An attribute that can be hung off a function or type.
+///
+/// Currently stubbed out, not really used. Potential uses:
+///
+/// * setting the backing type on an Enum's tag
+/// * packed(N)
+/// * align(N)
+/// * passthrough attrs to underlying language
+///
+/// Probably this should be broken up so that you can't "pack"
+/// a function or other such nonsense...
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Attr {
+    /// rust-style derive (unused, just for testing)
     Derive(AttrDerive),
+    /// The type should be packed
     Packed(AttrPacked),
+    /// Pass this attribute through to the target language
     Passthrough(AttrPassthrough),
 }
 
+/// An attribute declaring this type should be packed (remove padding/align).
+///
+/// TODO: add support for an integer argument for the max align of a
+/// field? Without one the default is 1. I never see packed(2) or whatever
+/// so I've never seriously thought through the implications...
+///
+/// @packed (N?)
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttrPacked {}
 
+/// An attribute declaring a rust-style derive (unused, just for testing).
+///
+/// @derive "Trait1" "Trait2" ...
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttrDerive(Vec<Spanned<String>>);
 
+/// An attribute to passthrough to the target language.
+///
+/// @ "whatever you want buddy"
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttrPassthrough(Spanned<String>);
 
+/// A struct decl.
+///
+/// Field names may be positional by naming them underscore (`_`).
+/// For languages like Rust, if all fields are declared like this
+/// it should be lowered to a tuple-struct. Otherwise positional
+/// fields will be autonamed something like field0, field1, ...
 #[derive(Debug, Clone)]
 pub struct StructDecl {
+    /// Name of the struct
     pub name: Ident,
+    /// Fields
     pub fields: Vec<TypedVar>,
+    /// Attributes
     pub attrs: Vec<Attr>,
 }
 
+/// An untagged union decl.
+///
+/// Variant names may be positional by naming them underscore (`_`).
+/// Positional variants will be autonamed something like Case0, Case1, ...
 #[derive(Debug, Clone)]
 pub struct UnionDecl {
+    /// Name of the union
     pub name: Ident,
+    /// Fields (variants)
     pub fields: Vec<TypedVar>,
     pub attrs: Vec<Attr>,
 }
 
+/// A c-like enum decl.
+///
+/// Variant names may be positional by naming them underscore (`_`).
+/// Positional variants will be autonamed something like Case0, Case1, ...
 #[derive(Debug, Clone)]
 pub struct EnumDecl {
     pub name: Ident,
@@ -93,12 +167,19 @@ pub struct EnumDecl {
     pub attrs: Vec<Attr>,
 }
 
+/// A variant of an [`EnumDecl`].
 #[derive(Debug, Clone)]
 pub struct EnumVariant {
     pub name: Ident,
+    /// Optional value this case is required to have
+    /// in its underlying integer representation.
     pub val: Option<IntExpr>,
 }
 
+/// A tagged union (rust-like enum).
+///
+/// Variant names may be positional by naming them underscore (`_`).
+/// Positional variants will be autonamed something like Case0, Case1, ...
 #[derive(Debug, Clone)]
 pub struct TaggedDecl {
     pub name: Ident,
@@ -106,12 +187,14 @@ pub struct TaggedDecl {
     pub attrs: Vec<Attr>,
 }
 
+/// A variant of a [`TaggedDecl`][].
 #[derive(Debug, Clone)]
 pub struct TaggedVariant {
     pub name: Ident,
     pub fields: Option<Vec<TypedVar>>,
 }
 
+/// A type pun between different languages.
 #[derive(Debug, Clone)]
 pub struct PunDecl {
     pub name: Ident,
@@ -119,22 +202,32 @@ pub struct PunDecl {
     pub attrs: Vec<Attr>,
 }
 
+/// A block for a [`PunDecl`][].
 #[derive(Debug, Clone)]
 pub struct PunBlock {
     pub selector: PunSelector,
     pub decl: TyDecl,
 }
 
+/// A selector for a [`PunBlock`][]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PunSelector {
+    /// Selector applies if any of the following apply.
     Any(Vec<PunSelector>),
-    // All(Vec<PunSelector>),
+    /// Selector applies if all of the following apply.
+    All(Vec<PunSelector>),
+    /// Selector applies if the [`PunEnv::lang`] is the following.
     Lang(Spanned<String>),
+    /// Selector always applies (default fallback).
     Default,
 }
 
+/// The environment required to resolve a [`PunSelector`][].
 #[derive(Debug, Clone)]
 pub struct PunEnv {
+    /// The target language
+    ///
+    /// TODO: make this an enum?
     pub lang: String,
     // compiler: String,
     // os: String,
@@ -142,30 +235,34 @@ pub struct PunEnv {
 }
 
 impl PunSelector {
+    /// Check if this [`PunSelector`][] matches the given [`PunEnv`][].
     pub fn matches(&self, env: &PunEnv) -> bool {
         use PunSelector::*;
         match self {
             Any(args) => args.iter().any(|s| s.matches(env)),
-            // All(args) => args.iter().all(|s| s.matches(env)),
+            All(args) => args.iter().all(|s| s.matches(env)),
             Lang(lang) => env.lang == **lang,
             Default => true,
         }
     }
 }
 
+/// A transparent type alias.
 #[derive(Debug, Clone)]
 pub struct AliasDecl {
     pub name: Ident,
-    pub alias: Spanned<TyRef>,
+    pub alias: Spanned<Tydent>,
     pub attrs: Vec<Attr>,
 }
 
+/// A (name, type) pair that occurs in many places like field/arg decls.
 #[derive(Debug, Clone)]
 pub struct TypedVar {
     pub name: Option<Ident>,
-    pub ty: Spanned<TyRef>,
+    pub ty: Spanned<Tydent>,
 }
 
+/// A function declaration
 #[derive(Debug, Clone)]
 pub struct FuncDecl {
     pub name: Ident,
@@ -176,12 +273,14 @@ pub struct FuncDecl {
     pub body: Vec<Stmt>,
 }
 
+/// The parser, used to hold onto some global state for things like diagnostic.
 struct Parser<'a> {
     // comp: &'a mut Compiler,
     src: Arc<NamedSource>,
     ast: &'a KdlDocument,
 }
 
+/// Parse a KdlScript program!
 pub fn parse_kdl_script(
     _comp: &mut Compiler,
     src: Arc<NamedSource>,
@@ -192,6 +291,7 @@ pub fn parse_kdl_script(
 }
 
 impl Parser<'_> {
+    /// Parse a KdlScript program!
     fn parse(&mut self) -> Result<ParsedProgram> {
         trace!("parsing");
 
@@ -202,6 +302,7 @@ impl Parser<'_> {
         Ok(program)
     }
 
+    /// Parse a "module" which is either the entire program or the contents of a [`PunBlock`][].
     fn parse_module(&mut self, doc: &KdlDocument) -> Result<ParsedProgram> {
         let mut funcs = StableMap::new();
         let mut tys = StableMap::new();
@@ -219,6 +320,7 @@ impl Parser<'_> {
             // Ok it's a real item, grab all the attributes, they belong to it
             let attrs = std::mem::take(&mut cur_attrs);
 
+            // Now parse the various kinds of top-level items
             match name {
                 "fn" => {
                     let func = self.func_decl(node, attrs)?;
@@ -254,10 +356,6 @@ impl Parser<'_> {
                     let old = tys.insert(ty.name.clone(), TyDecl::Pun(ty));
                     assert!(old.is_none(), "duplicate type def");
                 }
-
-                // "union" =>
-                // "enum" =>
-                // "tagged" =>
                 x => {
                     return Err(KdlScriptParseError {
                         message: format!("I don't know what a '{x}' is"),
@@ -269,6 +367,7 @@ impl Parser<'_> {
             }
         }
 
+        // Anything added after this point is a builtin!
         let builtin_funcs_start = funcs.len();
         Ok(ParsedProgram {
             tys,
@@ -277,6 +376,7 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse a `struct` node.
     fn struct_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<StructDecl> {
         trace!("struct decl");
         let name = self.one_string(node, "type name")?;
@@ -290,6 +390,7 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse a `union` node.
     fn union_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<UnionDecl> {
         trace!("union decl");
         let name = self.one_string(node, "type name")?;
@@ -303,6 +404,7 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse an `enum` node.
     fn enum_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<EnumDecl> {
         trace!("enum decl");
         let name = self.one_string(node, "type name")?;
@@ -316,6 +418,7 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse a `tagged` node.
     fn tagged_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<TaggedDecl> {
         trace!("enum decl");
         let name = self.one_string(node, "type name")?;
@@ -329,10 +432,12 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse a `pun` node.
     fn pun_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<PunDecl> {
         let name = self.one_string(node, "type name")?;
         let name = self.ident(name)?;
 
+        // Parse the pun blocks
         let mut blocks = vec![];
         for item in node.children().into_iter().flat_map(|d| d.nodes()) {
             let item_name = item.name().value();
@@ -383,6 +488,12 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse a pun block, expecting only a single type with the pun's name.
+    ///
+    /// In the future we may allow [`PunBlock`][]s to declare other "private" types
+    /// that are only in scope for the block but required to define the final type.
+    /// For now we punt on this to avoid thinking through the name resolution implications
+    /// for things like name shadowing.
     fn pun_block(&mut self, block: &KdlNode, final_ty_name: &Ident) -> Result<TyDecl> {
         if let Some(doc) = block.children() {
             // Recursively parse this block as an entire KdlScript program
@@ -436,15 +547,17 @@ impl Parser<'_> {
         }
     }
 
+    /// Parse an `alias` node.
     fn alias_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<AliasDecl> {
         let name = self.string_at(node, "type name", 0)?;
         let name = self.ident(name)?;
         let alias_str = self.string_at(node, "type name", 1)?;
-        let alias = self.ty_ref(&alias_str)?;
+        let alias = self.tydent(&alias_str)?;
 
         Ok(AliasDecl { name, alias, attrs })
     }
 
+    /// Parse a `fn` node.
     fn func_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<FuncDecl> {
         trace!("fn");
         let name = self.one_string(node, "function name")?;
@@ -566,6 +679,7 @@ impl Parser<'_> {
         })
     }
 
+    /// Parse an `@attribute` node.
     fn attr(&mut self, attr: &KdlNode) -> Result<Attr> {
         let entries = attr.entries();
         let attr = match attr.name().value() {
@@ -597,6 +711,7 @@ impl Parser<'_> {
         Ok(attr)
     }
 
+    /// This node's entries should only be a positional list of strings.
     fn string_list(&mut self, entries: &[KdlEntry]) -> Result<Vec<Spanned<String>>> {
         entries
             .iter()
@@ -624,6 +739,7 @@ impl Parser<'_> {
             .collect()
     }
 
+    /// This node's entries should be only one string.
     fn one_string(&mut self, node: &KdlNode, desc: &str) -> Result<Spanned<String>> {
         let res = self.string_at(node, desc, 0)?;
         let entries = node.entries();
@@ -638,6 +754,7 @@ impl Parser<'_> {
         Ok(res)
     }
 
+    /// This node should have a string at this entry offset.
     fn string_at(&mut self, node: &KdlNode, desc: &str, offset: usize) -> Result<Spanned<String>> {
         let entries = node.entries();
         if let Some(e) = entries.get(offset) {
@@ -673,6 +790,7 @@ impl Parser<'_> {
         }
     }
 
+    /// This node should have no entries.
     fn no_args(&mut self, node: &KdlNode) -> Result<()> {
         if let Some(entry) = node.entries().get(0) {
             return Err(KdlScriptParseError {
@@ -685,6 +803,7 @@ impl Parser<'_> {
         Ok(())
     }
 
+    /// This node should have no children.
     fn no_children(&mut self, node: &KdlNode) -> Result<()> {
         if let Some(children) = node.children() {
             return Err(KdlScriptParseError {
@@ -697,6 +816,7 @@ impl Parser<'_> {
         Ok(())
     }
 
+    /// This node's children should be TypedVars
     fn typed_var_children(&mut self, node: &KdlNode) -> Result<Vec<TypedVar>> {
         node.children()
             .into_iter()
@@ -704,13 +824,14 @@ impl Parser<'_> {
             .map(|var| {
                 let name = self.var_name_decl(var)?;
                 let ty_str = self.one_string(var, "type")?;
-                let ty = self.ty_ref(&ty_str)?;
+                let ty = self.tydent(&ty_str)?;
                 self.no_children(var)?;
                 Ok(TypedVar { name, ty })
             })
             .collect()
     }
 
+    /// This node's children should be enum variants
     fn enum_variant_children(&mut self, node: &KdlNode) -> Result<Vec<EnumVariant>> {
         node.children()
             .into_iter()
@@ -740,6 +861,7 @@ impl Parser<'_> {
             .collect()
     }
 
+    /// This node's children should be tagged variants
     fn tagged_variant_children(&mut self, node: &KdlNode) -> Result<Vec<TaggedVariant>> {
         node.children()
             .into_iter()
@@ -759,6 +881,9 @@ impl Parser<'_> {
             .collect()
     }
 
+    /// Parse this node's name as a possibly-positional variable name
+    ///
+    /// TODO: probably want this `Option<Ident>` to be its own special enum?
     fn var_name_decl(&mut self, var: &KdlNode) -> Result<Option<Ident>> {
         let name = var.name();
         let name = if name.value() == "_" {
@@ -770,7 +895,8 @@ impl Parser<'_> {
         Ok(name)
     }
 
-    fn ty_ref(&mut self, input: &Spanned<String>) -> Result<Spanned<TyRef>> {
+    /// Parse a [`Tydent`][] from this String.
+    fn tydent(&mut self, input: &Spanned<String>) -> Result<Spanned<Tydent>> {
         let (_, ty_ref) = all_consuming(context("a type", tydent))(&***input)
             .finish()
             .map_err(|_e| KdlScriptParseError {
@@ -782,6 +908,7 @@ impl Parser<'_> {
         Ok(ty_ref)
     }
 
+    /// Parse an [`Ident`][] from this String.
     fn ident(&mut self, input: Spanned<String>) -> Result<Spanned<String>> {
         let (_, _) = all_consuming(context("a type", tydent))(&*input).map_err(|_e| {
             KdlScriptParseError {
@@ -794,6 +921,7 @@ impl Parser<'_> {
         Ok(input)
     }
 
+    /// Parse an [`IntExpr`][] (literal) from this entry.
     fn int_expr(&mut self, entry: &KdlEntry) -> Result<IntExpr> {
         if entry.name().is_some() {
             return Err(KdlScriptParseError {
@@ -824,25 +952,27 @@ impl Parser<'_> {
     }
 }
 
+// A fuckton of nom parsing for sub-syntax like Tydents.
+
 type NomResult<I, O> = IResult<I, O, VerboseError<I>>;
 
 /// Matches the syntax for tydent ("identifier, but for types") incl structural types like arrays/references.
-fn tydent(input: &str) -> NomResult<&str, Spanned<TyRef>> {
+fn tydent(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     alt((tydent_ref, tydent_array, tydent_empty_tuple, tydent_named))(input)
 }
 
 /// Matches a reference type (&T)
-fn tydent_ref(input: &str) -> NomResult<&str, Spanned<TyRef>> {
+fn tydent_ref(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     let (input, pointee_ty) = preceded(
         tag("&"),
         context("pointee type", cut(preceded(many0(unicode_space), tydent))),
     )(input)?;
     // TODO: properly setup this span!
-    Ok((input, Spanned::from(TyRef::Ref(Box::new(pointee_ty)))))
+    Ok((input, Spanned::from(Tydent::Ref(Box::new(pointee_ty)))))
 }
 
 /// Matches an array type ([T; N])
-fn tydent_array(input: &str) -> NomResult<&str, Spanned<TyRef>> {
+fn tydent_array(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     let (input, (elem_ty, array_len)) = delimited(
         tag("["),
         cut(separated_pair(
@@ -862,7 +992,7 @@ fn tydent_array(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     // TODO: properly setup these spans!
     Ok((
         input,
-        Spanned::from(TyRef::Array(Box::new(elem_ty), array_len)),
+        Spanned::from(Tydent::Array(Box::new(elem_ty), array_len)),
     ))
 }
 
@@ -872,14 +1002,14 @@ fn array_len(input: &str) -> NomResult<&str, u64> {
 }
 
 /// Matches the empty tuple
-fn tydent_empty_tuple(input: &str) -> NomResult<&str, Spanned<TyRef>> {
+fn tydent_empty_tuple(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     let (input, _tup) = tag("()")(input)?;
     // TODO: properly setup this span!
-    Ok((input, Spanned::from(TyRef::Empty)))
+    Ok((input, Spanned::from(Tydent::Empty)))
 }
 
 /// Matches a named type
-fn tydent_named(input: &str) -> NomResult<&str, Spanned<TyRef>> {
+fn tydent_named(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     let (input, (ty_name, generics)) = pair(
         ident,
         opt(delimited(
@@ -898,7 +1028,7 @@ fn tydent_named(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     // TODO: properly setup this span!
     Ok((
         input,
-        Spanned::from(TyRef::Name(Spanned::from(ty_name.to_owned()))),
+        Spanned::from(Tydent::Name(Spanned::from(ty_name.to_owned()))),
     ))
 }
 
@@ -935,12 +1065,24 @@ fn unicode_space(input: &str) -> NomResult<&str, &str> {
     ))(input)
 }
 
+/// An integer expression (literal)
+///
+/// TODO: this should actually defer deserializing into an integer
+/// so that it can be some huge type like `u256`. Not sure who/where
+/// would be responsible for validating that the value fits in the
+/// expected range for where it's placed!
+///
+/// Possibly the type checker, but it also kinda needs to be deferred
+/// to the target language backends as a language may not be able to
+/// handle a `u256` or whatever.
 #[derive(Debug, Clone)]
 pub struct IntExpr {
     pub span: SourceSpan,
     pub val: i64,
 }
 
+/// All of this gunk is only used for function bodies, which only
+/// exist in the meme `feature=eval` mode.
 #[cfg(feature = "eval")]
 pub use runnable::*;
 #[cfg(feature = "eval")]
@@ -1181,16 +1323,16 @@ mod runnable {
                     inputs: vec![
                         TypedVar {
                             name: Some(Spanned::from(String::from("lhs"))),
-                            ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
+                            ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
                         },
                         TypedVar {
                             name: Some(Spanned::from(String::from("rhs"))),
-                            ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
+                            ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
                         },
                     ],
                     outputs: vec![TypedVar {
                         name: Some(Spanned::from(String::from("out"))),
-                        ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
+                        ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
                     }],
                     attrs: vec![],
 

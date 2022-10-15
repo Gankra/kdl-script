@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::{fs::File, io::Read, path::Path, sync::Arc};
 
 use kdl::KdlDocument;

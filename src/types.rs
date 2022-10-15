@@ -1,4 +1,44 @@
-//! Type System!
+//! The type checker and types!
+//!
+//! The entry point is [`typeck`][] which is implicitly
+//! handled by [`Compiler::compile_path`][] or [`Compiler::compile_string`][]
+//! and will produce a [`TypedProgram`][].
+//!
+//! You should then call [`TypedProgram::definition_graph`][] with your
+//! target backend's [`PunEnv`][] to resolve all the [`PunTy`]s and get a
+//! final [`DefinitionGraph`][].
+//!
+//! You should then call [`DefinitionGraph::definitions`][] with the set
+//! of functions you want to emit (usually [`TypedProgram::all_funcs`][])
+//! to get the final forward-decls and definitions your target should emit
+//! to generate its program.
+//!
+//! If a test (function) fails, you can pass just that function to
+//! [`DefinitionGraph::definitions`][] to get a minimized program for just
+//! that one function.
+//!
+//! The type system is phased like this to allow work to be reused and shared
+//! where possible. Each of the above "lowerings" represents increased levels
+//! of specificity:
+//!
+//! * [`TypedProgram`][] is abstract over all possible backends and can be computed once.
+//! * [`DefinitionGraph`][] is for a concrete backend but still abstract over what parts
+//!   of the program you might care about emitting. Computed once per backend config ([`PunEnv`]).
+//! * [`DefinitionGraph::definitions`][] is the final concrete program we want to emit.
+//!
+//! In principle a backend emitting various configs for a single [`TypedProgram`][] can
+//! share everything for a specific [`TyIdx`][] or [`FuncIdx`][], except they need to be
+//! careful about [`PunTy`][]s which can have [`DefinitionGraph`][]-specific lowerings...
+//! so really you should only recycle share created for a specific [`DefinitionGraph`]!
+//!
+//! TODO: unlike [`AliasTy`][]s, [`PunTy`][]s really *should* completely evaporate in the
+//! backend's lowering. Perhaps we should do something in [`TypedProgram`][] to actually
+//! make them transparent?
+//!
+//! While performance isn't a huge concern for this project, combinatorics do get
+//! kind of out of control so work sharing is kinda important, especially as the backends
+//! get more complex! Also it's just nice to handle backend-agnostic issues once to keep
+//! things simple and correct.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -615,18 +655,18 @@ impl TyCtx {
     ///
     /// All TyNames in the program must be memoized, as this is the only reliable
     /// way to do type comparisons. See the top level docs of TyIdx for details.
-    fn memoize_ty(&mut self, ty_ref: &Spanned<TyRef>) -> Result<TyIdx> {
+    fn memoize_ty(&mut self, ty_ref: &Spanned<Tydent>) -> Result<TyIdx> {
         let ty_idx = match &**ty_ref {
-            TyRef::Empty => self.memoize_inner(Ty::Empty),
-            TyRef::Ref(pointee_ty_ref) => {
+            Tydent::Empty => self.memoize_inner(Ty::Empty),
+            Tydent::Ref(pointee_ty_ref) => {
                 let pointee_ty = self.memoize_ty(pointee_ty_ref)?;
                 self.memoize_inner(Ty::Ref(RefTy { pointee_ty }))
             }
-            TyRef::Array(elem_ty_ref, len) => {
+            Tydent::Array(elem_ty_ref, len) => {
                 let elem_ty = self.memoize_ty(elem_ty_ref)?;
                 self.memoize_inner(Ty::Array(ArrayTy { elem_ty, len: *len }))
             }
-            TyRef::Name(name) => {
+            Tydent::Name(name) => {
                 // Nominal types take a separate path because they're scoped
                 if let Some(ty_idx) = self.resolve_nominal_ty(name) {
                     ty_idx
