@@ -35,6 +35,7 @@ pub struct KdlScriptParseError {
 pub struct ParsedProgram {
     pub tys: StableMap<Ident, TyDecl>,
     pub funcs: StableMap<Ident, FuncDecl>,
+    pub builtin_funcs_start: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -50,8 +51,8 @@ pub enum TyDecl {
 #[derive(Debug, Clone)]
 pub enum TyRef {
     Name(Ident),
-    Array(Box<TyRef>, u64),
-    Ref(Box<TyRef>),
+    Array(Box<Spanned<TyRef>>, u64),
+    Ref(Box<Spanned<TyRef>>),
     Empty,
 }
 
@@ -155,14 +156,14 @@ impl PunSelector {
 #[derive(Debug, Clone)]
 pub struct AliasDecl {
     pub name: Ident,
-    pub alias: TyRef,
+    pub alias: Spanned<TyRef>,
     pub attrs: Vec<Attr>,
 }
 
 #[derive(Debug, Clone)]
 pub struct TypedVar {
     pub name: Option<Ident>,
-    pub ty: TyRef,
+    pub ty: Spanned<TyRef>,
 }
 
 #[derive(Debug, Clone)]
@@ -196,7 +197,7 @@ impl Parser<'_> {
 
         let mut program = self.parse_module(self.ast)?;
         #[cfg(feature = "eval")]
-        program.add_builtins()?;
+        program.add_builtin_funcs()?;
 
         Ok(program)
     }
@@ -268,7 +269,12 @@ impl Parser<'_> {
             }
         }
 
-        Ok(ParsedProgram { tys, funcs })
+        let builtin_funcs_start = funcs.len();
+        Ok(ParsedProgram {
+            tys,
+            funcs,
+            builtin_funcs_start,
+        })
     }
 
     fn struct_decl(&mut self, node: &KdlNode, attrs: Vec<Attr>) -> Result<StructDecl> {
@@ -764,7 +770,7 @@ impl Parser<'_> {
         Ok(name)
     }
 
-    fn ty_ref(&mut self, input: &Spanned<String>) -> Result<TyRef> {
+    fn ty_ref(&mut self, input: &Spanned<String>) -> Result<Spanned<TyRef>> {
         let (_, ty_ref) = all_consuming(context("a type", tydent))(&***input)
             .finish()
             .map_err(|_e| KdlScriptParseError {
@@ -821,21 +827,22 @@ impl Parser<'_> {
 type NomResult<I, O> = IResult<I, O, VerboseError<I>>;
 
 /// Matches the syntax for tydent ("identifier, but for types") incl structural types like arrays/references.
-fn tydent(input: &str) -> NomResult<&str, TyRef> {
+fn tydent(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     alt((tydent_ref, tydent_array, tydent_empty_tuple, tydent_named))(input)
 }
 
 /// Matches a reference type (&T)
-fn tydent_ref(input: &str) -> NomResult<&str, TyRef> {
+fn tydent_ref(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     let (input, pointee_ty) = preceded(
         tag("&"),
         context("pointee type", cut(preceded(many0(unicode_space), tydent))),
     )(input)?;
-    Ok((input, TyRef::Ref(Box::new(pointee_ty))))
+    // TODO: properly setup this span!
+    Ok((input, Spanned::from(TyRef::Ref(Box::new(pointee_ty)))))
 }
 
 /// Matches an array type ([T; N])
-fn tydent_array(input: &str) -> NomResult<&str, TyRef> {
+fn tydent_array(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     let (input, (elem_ty, array_len)) = delimited(
         tag("["),
         cut(separated_pair(
@@ -852,7 +859,11 @@ fn tydent_array(input: &str) -> NomResult<&str, TyRef> {
         tag("]"),
     )(input)?;
 
-    Ok((input, TyRef::Array(Box::new(elem_ty), array_len)))
+    // TODO: properly setup these spans!
+    Ok((
+        input,
+        Spanned::from(TyRef::Array(Box::new(elem_ty), array_len)),
+    ))
 }
 
 /// Matches an array length (u64)
@@ -861,13 +872,14 @@ fn array_len(input: &str) -> NomResult<&str, u64> {
 }
 
 /// Matches the empty tuple
-fn tydent_empty_tuple(input: &str) -> NomResult<&str, TyRef> {
+fn tydent_empty_tuple(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     let (input, _tup) = tag("()")(input)?;
-    Ok((input, TyRef::Empty))
+    // TODO: properly setup this span!
+    Ok((input, Spanned::from(TyRef::Empty)))
 }
 
 /// Matches a named type
-fn tydent_named(input: &str) -> NomResult<&str, TyRef> {
+fn tydent_named(input: &str) -> NomResult<&str, Spanned<TyRef>> {
     let (input, (ty_name, generics)) = pair(
         ident,
         opt(delimited(
@@ -884,7 +896,10 @@ fn tydent_named(input: &str) -> NomResult<&str, TyRef> {
         panic!("generics aren't yet implemented!");
     }
     // TODO: properly setup this span!
-    Ok((input, TyRef::Name(Spanned::from(ty_name.to_owned()))))
+    Ok((
+        input,
+        Spanned::from(TyRef::Name(Spanned::from(ty_name.to_owned()))),
+    ))
 }
 
 /// Matches an identifier
@@ -1157,7 +1172,7 @@ mod runnable {
     }
 
     impl ParsedProgram {
-        pub(crate) fn add_builtins(&mut self) -> Result<()> {
+        pub(crate) fn add_builtin_funcs(&mut self) -> Result<()> {
             // Add builtins jankily
             self.funcs.insert(
                 Spanned::from(String::from("+")),
@@ -1166,16 +1181,16 @@ mod runnable {
                     inputs: vec![
                         TypedVar {
                             name: Some(Spanned::from(String::from("lhs"))),
-                            ty: TyRef::Name(Spanned::from(String::from("i64"))),
+                            ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
                         },
                         TypedVar {
                             name: Some(Spanned::from(String::from("rhs"))),
-                            ty: TyRef::Name(Spanned::from(String::from("i64"))),
+                            ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
                         },
                     ],
                     outputs: vec![TypedVar {
                         name: Some(Spanned::from(String::from("out"))),
-                        ty: TyRef::Name(Spanned::from(String::from("i64"))),
+                        ty: Spanned::from(TyRef::Name(Spanned::from(String::from("i64")))),
                     }],
                     attrs: vec![],
 

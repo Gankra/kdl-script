@@ -4,8 +4,8 @@ use kdl::KdlDocument;
 use miette::{Diagnostic, NamedSource};
 use thiserror::Error;
 
-use parse::{KdlScriptParseError, ParsedProgram};
-use types::TypedProgram;
+pub use parse::{KdlScriptParseError, ParsedProgram, PunEnv};
+pub use types::{Definition, DefinitionGraph, KdlScriptTypeError, TypedProgram};
 
 #[cfg(feature = "eval")]
 mod eval;
@@ -27,6 +27,10 @@ pub enum KdlScriptError {
     #[error(transparent)]
     #[diagnostic(transparent)]
     Parse(#[from] KdlScriptParseError),
+
+    #[error(transparent)]
+    #[diagnostic(transparent)]
+    Type(#[from] KdlScriptTypeError),
 }
 
 pub struct ErrorHandler {
