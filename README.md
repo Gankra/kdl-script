@@ -1,7 +1,6 @@
 # kdl-script
 
-[![crates.io](https://img.shields.io/crates/v/kdl-script.svg)](https://crates.io/crates/kdl-script) [![docs](https://docs.rs/kdl-script/badge.svg)](https://docs.rs/kdl-script)
-![Rust CI](https://github.com/axodotdev/kdl-script/workflows/Rust%20CI/badge.svg?branch=main)
+[![crates.io](https://img.shields.io/crates/v/kdl-script.svg)](https://crates.io/crates/kdl-script) [![docs](https://docs.rs/kdl-script/badge.svg)](https://docs.rs/kdl-script) ![Rust CI](https://github.com/Gankra/kdl-script/workflows/Rust%20CI/badge.svg?branch=main)
 
 
 A Compiler for KDLScript, the [KDL][]-based programming language!
@@ -280,13 +279,13 @@ Array types like `[u32; 4]` have the layout/repr you would expect from languages
 
 This is actually sugar for pass-by-reference (and largely decays into `u32*`):
 
-```
+```C
 void blah(u32[4] array);
 ```
 
 And this doesn't even compile:
 
-```
+```C
 u32[4] blah();
 ```
 
