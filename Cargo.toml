@@ -27,7 +27,7 @@ eval = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-clap = { version = "4.0.9", features = ["derive"], optional = true }
+clap = { version = "4.0.17", features = ["derive"], optional = true }
 kdl = "4.5.0"
 linked-hash-map = "0.5.6"
 miette = { version = "5.3.0" }
