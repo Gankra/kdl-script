@@ -35,7 +35,7 @@ nom = "7.1.1"
 petgraph = "0.6.2"
 serde = { version = "1.0.145", features = ["derive"] }
 serde_json = { version = "1.0.86", optional = true }
-thiserror = "1.0.37"
+thiserror = "1.0.38"
 tracing = "0.1.36"
 tracing-subscriber = { version = "0.3.15", optional = true }
 
