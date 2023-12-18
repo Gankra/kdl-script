@@ -897,7 +897,7 @@ impl Parser<'_> {
 
     /// Parse a [`Tydent`][] from this String.
     fn tydent(&mut self, input: &Spanned<String>) -> Result<Spanned<Tydent>> {
-        let (_, ty_ref) = all_consuming(context("a type", tydent))(&***input)
+        let (_, ty_ref) = all_consuming(context("a type", tydent))(input)
             .finish()
             .map_err(|_e| KdlScriptParseError {
                 message: String::from("couldn't parse type"),
@@ -910,14 +910,13 @@ impl Parser<'_> {
 
     /// Parse an [`Ident`][] from this String.
     fn ident(&mut self, input: Spanned<String>) -> Result<Spanned<String>> {
-        let (_, _) = all_consuming(context("a type", tydent))(&*input).map_err(|_e| {
-            KdlScriptParseError {
+        let (_, _) =
+            all_consuming(context("a type", tydent))(&input).map_err(|_e| KdlScriptParseError {
                 message: String::from("invalid identifier"),
                 src: self.src.clone(),
                 span: Spanned::span(&input),
                 help: None,
-            }
-        })?;
+            })?;
         Ok(input)
     }
 
