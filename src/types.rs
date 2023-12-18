@@ -29,7 +29,7 @@
 //! In principle a backend emitting various configs for a single [`TypedProgram`][] can
 //! share everything for a specific [`TyIdx`][] or [`FuncIdx`][], except they need to be
 //! careful about [`PunTy`][]s which can have [`DefinitionGraph`][]-specific lowerings...
-//! so really you should only recycle share created for a specific [`DefinitionGraph`]!
+//! so really you should only recycle state created for a specific [`DefinitionGraph`]!
 //!
 //! TODO: unlike [`AliasTy`][]s, [`PunTy`][]s really *should* completely evaporate in the
 //! backend's lowering. Perhaps we should do something in [`TypedProgram`][] to actually
