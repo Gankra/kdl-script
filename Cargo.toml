@@ -40,4 +40,4 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.16", optional = true }
 
 [dev-dependencies]
-insta = "1.21.0"
+insta = "1.34.0"
