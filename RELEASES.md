@@ -1,4 +1,9 @@
 
+# 0.2.1
+
+Minor release to update dependencies and docs.
+
+
 # 0.2.0
 
 Got a lot of the parser and type system implemented, can now do all the kinds of type
