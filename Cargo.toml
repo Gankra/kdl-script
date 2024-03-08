@@ -30,7 +30,7 @@ eval = []
 clap = { version = "4.1.8", features = ["derive"], optional = true }
 kdl = "4.5.0"
 linked-hash-map = "0.5.6"
-miette = { version = "5.10.0" }
+miette = { version = "7.2.0" }
 nom = "7.1.3"
 petgraph = "0.6.4"
 serde = { version = "1.0.154", features = ["derive"] }
