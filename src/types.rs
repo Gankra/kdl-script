@@ -31,7 +31,7 @@
 //! careful about [`PunTy`][]s which can have [`DefinitionGraph`][]-specific lowerings...
 //! so really you should only recycle state created for a specific [`DefinitionGraph`]!
 //!
-//! TODO: unlike [`AliasTy`][]s, [`PunTy`][]s really *should* completely evaporate in the
+//! FIXME: unlike [`AliasTy`][]s, [`PunTy`][]s really *should* completely evaporate in the
 //! backend's lowering. Perhaps we should do something in [`TypedProgram`][] to actually
 //! make them transparent?
 //!
@@ -194,6 +194,8 @@ pub struct StructTy {
     pub name: Ident,
     pub fields: Vec<FieldTy>,
     pub attrs: Vec<Attr>,
+    /// True if all fields had was_blank set, indicating this could be emitted as a tuple-struct
+    pub all_fields_were_blank: bool,
 }
 
 /// The Ty of an untagged union.
@@ -238,6 +240,8 @@ pub struct TaggedTy {
 pub struct TaggedVariantTy {
     pub name: Ident,
     pub fields: Option<Vec<FieldTy>>,
+    /// True if all fields have was_blank set, indicating this could be emitted as a tuple-variant
+    pub all_fields_were_blank: bool,
 }
 
 /// The Ty of a transparent type alias.
@@ -281,8 +285,6 @@ pub struct ArrayTy {
 ///
 /// Out-params should appear after "normal" inputs but before vararg inputs,
 /// with the name specified.
-///
-/// TODO: think about nested references in an output?
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RefTy {
     pub pointee_ty: TyIdx,
@@ -419,8 +421,9 @@ pub fn typeck(comp: &mut Compiler, parsed: &ParsedProgram) -> Result<TypedProgra
             let inputs = func_decl
                 .inputs
                 .iter()
-                .map(|var| -> Result<Arg> {
-                    let name = var.name.clone().expect("TODO: impl optional names");
+                .enumerate()
+                .map(|(idx, var)| -> Result<Arg> {
+                    let name = ident_var(var.name.clone(), "arg", idx, &var.ty);
                     let ty = tcx.memoize_ty(&var.ty)?;
                     Ok(Arg { name, ty })
                 })
@@ -428,8 +431,9 @@ pub fn typeck(comp: &mut Compiler, parsed: &ParsedProgram) -> Result<TypedProgra
             let outputs = func_decl
                 .outputs
                 .iter()
-                .map(|var| -> Result<Arg> {
-                    let name = var.name.clone().expect("TODO: impl optional names");
+                .enumerate()
+                .map(|(idx, var)| {
+                    let name = ident_var(var.name.clone(), "out", idx, &var.ty);
                     let ty = tcx.memoize_ty(&var.ty)?;
                     Ok(Arg { name, ty })
                 })
@@ -487,7 +491,7 @@ impl TyCtx {
                 .last_mut()
                 .unwrap()
                 .tys
-                .insert(Spanned::from(ty_name.to_owned()), ty_idx);
+                .insert(Ident::from(ty_name.to_owned()), ty_idx);
         }
     }
 
@@ -529,15 +533,17 @@ impl TyCtx {
                     .map(|(idx, f)| {
                         Ok(FieldTy {
                             idx,
-                            ident: f.name.clone().expect("TODO: implement unnamed fields"),
+                            ident: ident_var(f.name.clone(), "field", idx, &f.ty),
                             ty: self.memoize_ty(&f.ty)?,
                         })
                     })
                     .collect::<Result<Vec<_>>>()?;
+                let all_fields_were_blank = fields.iter().all(|f| f.ident.was_blank);
                 Ty::Struct(StructTy {
                     name: decl.name.clone(),
                     fields,
                     attrs: decl.attrs.clone(),
+                    all_fields_were_blank,
                 })
             }
             TyDecl::Union(decl) => {
@@ -548,7 +554,7 @@ impl TyCtx {
                     .map(|(idx, f)| {
                         Ok(FieldTy {
                             idx,
-                            ident: f.name.clone().expect("TODO: implement unnamed fields"),
+                            ident: ident_var(f.name.clone(), "field", idx, &f.ty),
                             ty: self.memoize_ty(&f.ty)?,
                         })
                     })
@@ -578,28 +584,32 @@ impl TyCtx {
                     .variants
                     .iter()
                     .map(|v| {
+                        let fields = if let Some(fields) = &v.fields {
+                            Some(
+                                fields
+                                    .iter()
+                                    .enumerate()
+                                    .map(|(idx, f)| {
+                                        Ok(FieldTy {
+                                            idx,
+                                            ident: ident_var(f.name.clone(), "field", idx, &f.ty),
+                                            ty: self.memoize_ty(&f.ty)?,
+                                        })
+                                    })
+                                    .collect::<Result<Vec<_>>>()?,
+                            )
+                        } else {
+                            None
+                        };
+                        let all_fields_were_blank = fields
+                            .as_deref()
+                            .unwrap_or_default()
+                            .iter()
+                            .all(|f| f.ident.was_blank);
                         Ok(TaggedVariantTy {
                             name: v.name.clone(),
-                            fields: if let Some(fields) = &v.fields {
-                                Some(
-                                    fields
-                                        .iter()
-                                        .enumerate()
-                                        .map(|(idx, f)| {
-                                            Ok(FieldTy {
-                                                idx,
-                                                ident: f
-                                                    .name
-                                                    .clone()
-                                                    .expect("TODO: implement unnamed fields"),
-                                                ty: self.memoize_ty(&f.ty)?,
-                                            })
-                                        })
-                                        .collect::<Result<Vec<_>>>()?,
-                                )
-                            } else {
-                                None
-                            },
+                            fields,
+                            all_fields_were_blank,
                         })
                     })
                     .collect::<Result<Vec<_>>>()?;
@@ -1033,5 +1043,18 @@ impl DefinitionGraph {
         }
 
         output
+    }
+}
+
+fn ident_var<T>(val: Option<Ident>, basename: &str, idx: usize, backup_span: &Spanned<T>) -> Ident {
+    if let Some(val) = val {
+        val
+    } else {
+        let val = format!("{basename}{idx}");
+        let val = Spanned::new(val, Spanned::span(backup_span));
+        Ident {
+            was_blank: false,
+            val,
+        }
     }
 }

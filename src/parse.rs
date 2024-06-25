@@ -24,9 +24,89 @@ use tracing::trace;
 use crate::spanned::Spanned;
 use crate::{Compiler, Result};
 
-/// A string that may refer to another item like a type of function
-pub type Ident = Spanned<String>;
 pub type StableMap<K, V> = linked_hash_map::LinkedHashMap<K, V>;
+
+/// A string that may refer to another item like a type of function
+#[derive(Debug, Clone)]
+pub struct Ident {
+    /// true if the ident was actually "_" and we made up a name.
+    ///
+    /// Languages which have anonymous/positional fields may choose
+    /// to emit this field as such, instead of using `val`.
+    pub was_blank: bool,
+    /// the string to use for the ident
+    pub val: Spanned<String>,
+}
+
+impl std::cmp::PartialEq for Ident {
+    fn eq(&self, other: &Self) -> bool {
+        self.val == other.val
+    }
+}
+impl std::cmp::PartialEq<String> for Ident {
+    fn eq(&self, other: &String) -> bool {
+        self.val.as_str() == other
+    }
+}
+impl std::cmp::PartialEq<str> for Ident {
+    fn eq(&self, other: &str) -> bool {
+        self.val.as_str() == other
+    }
+}
+impl std::cmp::Eq for Ident {}
+impl std::cmp::PartialOrd for Ident {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl std::cmp::Ord for Ident {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.val.cmp(&other.val)
+    }
+}
+impl std::hash::Hash for Ident {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.val.hash(state);
+    }
+}
+impl std::borrow::Borrow<str> for Ident {
+    fn borrow(&self) -> &str {
+        &self.val
+    }
+}
+
+impl std::ops::Deref for Ident {
+    type Target = Spanned<String>;
+    fn deref(&self) -> &Self::Target {
+        &self.val
+    }
+}
+impl From<String> for Ident {
+    fn from(val: String) -> Self {
+        Self::new(Spanned::from(val))
+    }
+}
+
+impl Ident {
+    fn new(val: Spanned<String>) -> Self {
+        Self {
+            val,
+            was_blank: false,
+        }
+    }
+    fn with_span(val: String, span: SourceSpan) -> Self {
+        Self {
+            val: Spanned::new(val, span),
+            was_blank: false,
+        }
+    }
+}
+
+impl std::fmt::Display for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.val.fmt(f)
+    }
+}
 
 /// An error that occured during parsing
 #[derive(Debug, Error, Diagnostic)]
@@ -841,7 +921,7 @@ impl Parser<'_> {
                 let name = Spanned::new(name.value().to_owned(), *name.span());
                 let name = self.ident(name)?;
                 let entries = var.entries();
-                let val = if let Some(e) = entries.get(0) {
+                let val = if let Some(e) = entries.first() {
                     Some(self.int_expr(e)?)
                 } else {
                     None
@@ -909,7 +989,7 @@ impl Parser<'_> {
     }
 
     /// Parse an [`Ident`][] from this String.
-    fn ident(&mut self, input: Spanned<String>) -> Result<Spanned<String>> {
+    fn ident(&mut self, input: Spanned<String>) -> Result<Ident> {
         let (_, _) =
             all_consuming(context("a type", tydent))(&input).map_err(|_e| KdlScriptParseError {
                 message: String::from("invalid identifier"),
@@ -917,7 +997,10 @@ impl Parser<'_> {
                 span: Spanned::span(&input),
                 help: None,
             })?;
-        Ok(input)
+        Ok(Ident {
+            val: input,
+            was_blank: false,
+        })
     }
 
     /// Parse an [`IntExpr`][] (literal) from this entry.
@@ -1027,7 +1110,10 @@ fn tydent_named(input: &str) -> NomResult<&str, Spanned<Tydent>> {
     // TODO: properly setup this span!
     Ok((
         input,
-        Spanned::from(Tydent::Name(Spanned::from(ty_name.to_owned()))),
+        Spanned::from(Tydent::Name(Ident {
+            val: Spanned::from(ty_name.to_owned()),
+            was_blank: false,
+        })),
     ))
 }
 
@@ -1213,21 +1299,21 @@ mod runnable {
             let expr = if let Ok(string) = self.string_at(node, "", expr_start) {
                 if let Some((func, "")) = string.rsplit_once(':') {
                     trace!("  call expr");
-                    let func = Spanned::new(func.to_owned(), Spanned::span(&string));
+                    let func = Ident::with_span(func.to_owned(), Spanned::span(&string));
                     let args = self.func_args(node, expr_start + 1)?;
                     Expr::Call(CallExpr { func, args })
                 } else if node.children().is_some() {
                     trace!("  ctor expr");
-                    let ty = string;
+                    let ty = Ident::new(string);
                     let vals = self.let_stmt_children(node)?;
                     Expr::Ctor(CtorExpr { ty, vals })
                 } else {
                     trace!("  path expr");
                     let mut parts = string.split('.');
                     let var =
-                        Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
+                        Ident::with_span(parts.next().unwrap().to_owned(), Spanned::span(&string));
                     let path = parts
-                        .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
+                        .map(|s| Ident::with_span(s.to_owned(), Spanned::span(&string)))
                         .collect();
                     Expr::Path(PathExpr { var, path })
                 }
@@ -1274,9 +1360,9 @@ mod runnable {
                     trace!("  path expr");
                     let mut parts = string.split('.');
                     let var =
-                        Spanned::new(parts.next().unwrap().to_owned(), Spanned::span(&string));
+                        Ident::with_span(parts.next().unwrap().to_owned(), Spanned::span(&string));
                     let path = parts
-                        .map(|s| Spanned::new(s.to_owned(), Spanned::span(&string)))
+                        .map(|s| Ident::with_span(s.to_owned(), Spanned::span(&string)))
                         .collect();
                     Expr::Path(PathExpr { var, path })
                 }
@@ -1316,22 +1402,22 @@ mod runnable {
         pub(crate) fn add_builtin_funcs(&mut self) -> Result<()> {
             // Add builtins jankily
             self.funcs.insert(
-                Spanned::from(String::from("+")),
+                Ident::from(String::from("+")),
                 FuncDecl {
-                    name: Spanned::from(String::from("+")),
+                    name: Ident::from(String::from("+")),
                     inputs: vec![
                         TypedVar {
-                            name: Some(Spanned::from(String::from("lhs"))),
-                            ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
+                            name: Some(Ident::from(String::from("lhs"))),
+                            ty: Spanned::from(Tydent::Name(Ident::from(String::from("i64")))),
                         },
                         TypedVar {
-                            name: Some(Spanned::from(String::from("rhs"))),
-                            ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
+                            name: Some(Ident::from(String::from("rhs"))),
+                            ty: Spanned::from(Tydent::Name(Ident::from(String::from("i64")))),
                         },
                     ],
                     outputs: vec![TypedVar {
-                        name: Some(Spanned::from(String::from("out"))),
-                        ty: Spanned::from(Tydent::Name(Spanned::from(String::from("i64")))),
+                        name: Some(Ident::from(String::from("out"))),
+                        ty: Spanned::from(Tydent::Name(Ident::from(String::from("i64")))),
                     }],
                     attrs: vec![],
 

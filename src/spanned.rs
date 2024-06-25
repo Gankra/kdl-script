@@ -143,6 +143,12 @@ impl<T: PartialEq<T>> PartialEq<T> for Spanned<T> {
     }
 }
 
+impl PartialEq<str> for Spanned<String> {
+    fn eq(&self, other: &str) -> bool {
+        self.value.eq(other)
+    }
+}
+
 impl<T: Eq> Eq for Spanned<T> {}
 
 impl<T: Hash> Hash for Spanned<T> {

@@ -216,6 +216,50 @@ fn ref_basics() -> Result<(), miette::Report> {
 }
 
 #[test]
+fn anon_vars() -> Result<(), miette::Report> {
+    let program = r##"
+        struct "MyTupleStruct" {
+            _ "bool"
+            _ "i32"
+            _ "u64"
+        }
+        tagged "MyTagged" {
+            TupleVariant {
+                _ "bool"
+                _ "i32"
+                _ "u64"
+            }
+            HybridVariant {
+                x "bool"
+                _ "u32"
+            }
+            StructVariant {
+                x "u8"
+                z "i64"
+            }
+            EmptyVariant {
+            }
+            NoneLike
+        }
+        fn "anons" {
+            inputs {
+                _ "u32"
+                _ "MyTupleStruct"
+                z "i8"
+            }
+            outputs {
+                _ "MyTagged"
+                _ "&i32"
+                w "&i64"
+            }
+        }
+    "##;
+    let mut compiler = crate::Compiler::new();
+    compiler.compile_string("test.kdl", program.to_owned())?;
+    Ok(())
+}
+
+#[test]
 fn example_types() -> Result<(), miette::Report> {
     let mut compiler = crate::Compiler::new();
     compiler.compile_path("examples/types.kdl")?;

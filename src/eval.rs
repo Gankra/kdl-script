@@ -74,7 +74,7 @@ fn eval_expr(program: &ParsedProgram, expr: &Spanned<Expr>, vars: &HashMap<Strin
                 })
                 .collect();
 
-            match &**func.name {
+            match func.name.as_str() {
                 "+" => eval_add(input),
                 _ => eval_call(program, func, input),
             }
@@ -86,7 +86,7 @@ fn eval_expr(program: &ParsedProgram, expr: &Spanned<Expr>, vars: &HashMap<Strin
             for field in &expr.path {
                 if let Val::Struct(val) = sub_val {
                     sub_val = val
-                        .get(&**field)
+                        .get(field.as_str())
                         .unwrap_or_else(|| panic!("couldn't find field {}", &**field));
                 } else {
                     panic!("tried to get .{} on primitive", &**field);
@@ -143,7 +143,10 @@ fn eval_add(input: HashMap<String, Val>) -> Val {
 }
 
 fn lookup_func<'a>(program: &'a ParsedProgram, func_name: &str) -> &'a FuncDecl {
-    let func = program.funcs.iter().find(|(name, _f)| ***name == func_name);
+    let func = program
+        .funcs
+        .iter()
+        .find(|(name, _f)| name.as_str() == func_name);
     if func.is_none() {
         panic!("couldn't find {func_name} function");
     }
