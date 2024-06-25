@@ -1,4 +1,4 @@
-# Unreleased
+# 0.3.0
 
 This release changes Ident to support blank ("_") names in some places:
 
