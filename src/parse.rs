@@ -792,7 +792,7 @@ impl Parser<'_> {
 
     /// This node should have no entries.
     fn no_args(&mut self, node: &KdlNode) -> Result<()> {
-        if let Some(entry) = node.entries().get(0) {
+        if let Some(entry) = node.entries().first() {
             return Err(KdlScriptParseError {
                 message: "This shouldn't have arguments".to_string(),
                 src: self.src.clone(),

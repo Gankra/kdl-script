@@ -255,6 +255,7 @@ pub struct AliasTy {
 /// A field of a [`StructTy`][] or [`UnionTy`][].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FieldTy {
+    pub idx: usize,
     pub ident: Ident,
     pub ty: TyIdx,
 }
@@ -476,6 +477,7 @@ impl TyCtx {
             ("f128", Ty::Primitive(PrimitiveTy::F128)),
             ("bool", Ty::Primitive(PrimitiveTy::Bool)),
             ("ptr", Ty::Primitive(PrimitiveTy::Ptr)),
+            ("()", Ty::Empty),
         ];
 
         for (ty_name, ty) in builtins {
@@ -523,8 +525,10 @@ impl TyCtx {
                 let fields = decl
                     .fields
                     .iter()
-                    .map(|f| {
+                    .enumerate()
+                    .map(|(idx, f)| {
                         Ok(FieldTy {
+                            idx,
                             ident: f.name.clone().expect("TODO: implement unnamed fields"),
                             ty: self.memoize_ty(&f.ty)?,
                         })
@@ -540,8 +544,10 @@ impl TyCtx {
                 let fields = decl
                     .fields
                     .iter()
-                    .map(|f| {
+                    .enumerate()
+                    .map(|(idx, f)| {
                         Ok(FieldTy {
+                            idx,
                             ident: f.name.clone().expect("TODO: implement unnamed fields"),
                             ty: self.memoize_ty(&f.ty)?,
                         })
@@ -578,8 +584,10 @@ impl TyCtx {
                                 Some(
                                     fields
                                         .iter()
-                                        .map(|f| {
+                                        .enumerate()
+                                        .map(|(idx, f)| {
                                             Ok(FieldTy {
+                                                idx,
                                                 ident: f
                                                     .name
                                                     .clone()
@@ -643,7 +651,7 @@ impl TyCtx {
     /// Resolve the type id (TyIdx) associated with a nominal type (struct name),
     /// at this point in the program.
     fn resolve_nominal_ty(&mut self, ty_name: &str) -> Option<TyIdx> {
-        for (_depth, env) in self.envs.iter_mut().rev().enumerate() {
+        for env in self.envs.iter_mut().rev() {
             if let Some(ty) = env.tys.get(ty_name) {
                 return Some(*ty);
             }
